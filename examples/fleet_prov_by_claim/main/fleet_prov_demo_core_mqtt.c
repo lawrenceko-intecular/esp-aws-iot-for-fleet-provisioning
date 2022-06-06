@@ -31,8 +31,19 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/* POSIX includes. */
+#include <unistd.h>
+#include <errno.h>
+
 /* Include Demo Config as the first non-system header. */
 #include "demo_config.h"
+
+/* corePKCS11 includes. */
+#include "core_pkcs11.h"
+#include "core_pkcs11_config.h"
+
+/* AWS IoT Fleet Provisioning Library. */
+#include "fleet_provisioning.h"
 
 /*-----------------------------------------------------------*/
 

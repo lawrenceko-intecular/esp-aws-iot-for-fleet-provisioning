@@ -7,6 +7,7 @@ set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_exam
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/corePKCS11"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/backoffAlgorithm"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/common/posix_compat"
+						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/Fleet-Provisioning-for-AWS-IoT-embedded-sdk"
    )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
