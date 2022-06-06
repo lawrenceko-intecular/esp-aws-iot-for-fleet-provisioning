@@ -21,7 +21,7 @@
 	url = https://github.com/FreeRTOS/coreJSON.git
 [submodule "libraries/corePKCS11/corePKCS11"]
 	path = libraries/corePKCS11/corePKCS11
-	url = https://github.com/FreeRTOS/corePKCS11.git
+	url = https://github.com/lawrenceko-intecular/corePKCS11.git
 [submodule "libraries/coreHTTP/coreHTTP"]
 	path = libraries/coreHTTP/coreHTTP
 	url = https://github.com/FreeRTOS/coreHTTP.git
