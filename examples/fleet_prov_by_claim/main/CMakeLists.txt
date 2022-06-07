@@ -2,6 +2,7 @@ set(COMPONENT_SRCS
 	"app_main.c"
 	"fleet_prov_demo_core_mqtt.c"
 	"mqtt_operations.c"
+	"pkcs11_operations.c"
 	)
 
 set(COMPONENT_ADD_INCLUDEDIRS
@@ -9,6 +10,8 @@ set(COMPONENT_ADD_INCLUDEDIRS
 	"${PROJECT_DIR}/../../libraries/common/logging/"
 	"${PROJECT_DIR}/../../platform/posix/"
 	"${PROJECT_DIR}/../../platform/posix/posix/transport/include/"
+	"${PROJECT_DIR}/../../libraries/corePKCS11/corePKCS11/source/dependency/3rdparty/mbedtls_utils/"
+	"${PROJECT_DIR}/../../libraries/corePKCS11/corePKCS11/source/dependency/3rdparty/mbedtls/programs/util/"
 	)
 
 idf_component_register(SRCS "${COMPONENT_SRCS}"

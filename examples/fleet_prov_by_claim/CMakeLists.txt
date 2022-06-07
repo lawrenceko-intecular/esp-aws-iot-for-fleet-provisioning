@@ -9,6 +9,7 @@ set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_exam
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/common/posix_compat"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/Fleet-Provisioning-for-AWS-IoT-embedded-sdk"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../platform/posix"
+#						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/corePKCS11/source/dependency/3rdparty/mbedtls"
    )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
