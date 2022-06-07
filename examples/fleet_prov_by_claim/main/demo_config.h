@@ -38,7 +38,7 @@
 
 /* Logging configuration for the Demo. */
 #ifndef LIBRARY_LOG_NAME
-    #define LIBRARY_LOG_NAME     "OTA_MQTT_DEMO"
+    #define LIBRARY_LOG_NAME     "FLEET_PROVISIONING_DEMO"
 #endif
 #ifndef LIBRARY_LOG_LEVEL
     #define LIBRARY_LOG_LEVEL    LOG_INFO
@@ -68,13 +68,106 @@
 #define AWS_MQTT_PORT    ( CONFIG_MQTT_BROKER_PORT )
 
 /**
+ * @brief Path of the file containing the server's root CA certificate.
+ *
+ * This certificate is used to identify the AWS IoT server and is publicly
+ * available. Refer to the AWS documentation available in the link below
+ * https://docs.aws.amazon.com/iot/latest/developerguide/server-authentication.html#server-authentication-certs
+ *
+ * Amazon's root CA certificate is automatically downloaded to the certificates
+ * directory from @ref https://www.amazontrust.com/repository/AmazonRootCA1.pem
+ * using the CMake build system.
+ *
+ * @note This certificate should be PEM-encoded.
+ * @note This path is relative from the demo binary created. Update
+ * ROOT_CA_CERT_PATH to the absolute path if this demo is executed from elsewhere.
+ */
+#ifndef ROOT_CA_CERT_PATH
+    #define ROOT_CA_CERT_PATH    "certs/AmazonRootCA1.crt"
+#endif
+
+/**
+ * @brief Path of the file containing the provisioning claim certificate. This
+ * certificate is used to connect to AWS IoT Core and use Fleet Provisioning
+ * APIs to provision the client device. This is used for the "Provisioning by
+ * Claim" provisioning workflow.
+ *
+ * For information about provisioning by claim, see the following AWS documentation:
+ * https://docs.aws.amazon.com/iot/latest/developerguide/provision-wo-cert.html#claim-based
+ *
+ * @note This certificate should be PEM-encoded. The certificate should be
+ * registered on AWS IoT Core beforehand. It should have an AWS IoT policy to
+ * allow it to access only the Fleet Provisioning APIs. An example policy for
+ * the claim certificates for this demo is available in the
+ * example_claim_policy.json file in the demo directory. In the example,
+ * replace <aws-region> with your AWS region, <aws-account-id> with your
+ * account ID, and <template-name> with the name of your provisioning template.
+ *
+ */
+#define CLAIM_CERT_PATH    "certs/b592a7428e4e30c75bc1f72365377a4ab0b8b79dce4276ae2a5c79c5395bcb86-certificate.pem.crt"
+
+/**
+ * @brief Path of the file containing the provisioning claim private key. This
+ * key corresponds to the provisioning claim certificate and is used to
+ * authenticate with AWS IoT for provisioning by claim.
+ *
+ * For information about provisioning by claim, see the following AWS documentation:
+ * https://docs.aws.amazon.com/iot/latest/developerguide/provision-wo-cert.html#claim-based
+ *
+ * @note This private key should be PEM-encoded.
+ *
+ */
+#define CLAIM_PRIVATE_KEY_PATH    "certs/b592a7428e4e30c75bc1f72365377a4ab0b8b79dce4276ae2a5c79c5395bcb86-private.pem.key"
+
+/**
+ * @brief Name of the provisioning template to use for the RegisterThing
+ * portion of the Fleet Provisioning workflow.
+ *
+ * For information about provisioning templates, see the following AWS documentation:
+ * https://docs.aws.amazon.com/iot/latest/developerguide/provision-template.html#fleet-provision-template
+ *
+ * The example template used for this demo is available in the
+ * example_demo_template.json file in the demo directory. In the example,
+ * replace <provisioned-thing-policy> with the policy provisioned devices
+ * should have.  The demo template uses Fn::Join to construct the Thing name by
+ * concatenating fp_demo_ and the serial number sent by the demo.
+ *
+ * @note The provisioning template MUST be created in AWS IoT before running the
+ * demo.
+ *
+ */
+#define PROVISIONING_TEMPLATE_NAME    "IVO1-FleetProvisioning"
+
+/**
+ * @brief Serial number to send in the request to the Fleet Provisioning
+ * RegisterThing API.
+ *
+ * This is sent as a parameter to the provisioning template, which uses it to
+ * generate a unique Thing name. This should be unique per device.
+ *
+ */
+#define DEVICE_SERIAL_NUMBER    "29B4"
+
+/**
  * @brief MQTT client identifier.
  *
  * No two clients may use the same client identifier simultaneously.
+ *
+ * @note The client identifier should match the Thing name per
+ * AWS IoT Security best practices:
+ * https://docs.aws.amazon.com/iot/latest/developerguide/security-best-practices.html
+ * However, it is not required for the demo to run.
  */
 #ifndef CLIENT_IDENTIFIER
-    #define CLIENT_IDENTIFIER    CONFIG_MQTT_CLIENT_IDENTIFIER
+    #define CLIENT_IDENTIFIER    DEVICE_SERIAL_NUMBER
 #endif
+
+/**
+ * @brief Size of the network buffer for MQTT packets. Must be large enough to
+ * hold the GetCertificateFromCsr response, which, among other things, includes
+ * a PEM encoded certificate.
+ */
+#define NETWORK_BUFFER_SIZE       ( 2048U )
 
 /**
  * @brief Configure application version.
@@ -96,7 +189,7 @@
  * on. The current value is given as an example. Please update for your specific
  * operating system version.
  */
-#define OS_VERSION                tskKERNEL_VERSION_NUMBER
+#define OS_VERSION                "1.0"
 
 /**
  * @brief The name of the hardware platform the application is running on. The
@@ -106,9 +199,10 @@
 #define HARDWARE_PLATFORM_NAME    CONFIG_HARDWARE_PLATFORM_NAME
 
 /**
- * @brief The name of the library used and its version, following an "@"
+ * @brief The name of the MQTT library used and its version, following an "@"
  * symbol.
  */
-#define OTA_LIB                   "otalib@1.0.0"
+#include "core_mqtt.h"
+#define MQTT_LIB    "core-mqtt@" MQTT_LIBRARY_VERSION
 
 #endif /* ifndef DEMO_CONFIG_H */
