@@ -27,7 +27,7 @@ bool generateRegisterThingRequest( uint8_t * pBuffer,
                                    const char * pSerial,
                                    size_t serialLength,
                                    size_t * pOutLengthWritten );
-                                   
+
 /**
  * @brief Extracts the certificate, certificate ID, and certificate ownership
  * token from a CreateKeysAndCertificate accepted response. These are copied
@@ -56,3 +56,17 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
                             size_t * pCertificateIdBufferLength,
                             char * pOwnershipTokenBuffer,
                             size_t * pOwnershipTokenBufferLength );
+
+/**
+ * @brief Extracts the Thing name from a RegisterThing accepted response.
+ *
+ * @param[in] pResponse The response document.
+ * @param[in] length Length of #pResponse.
+ * @param[in] pThingNameBuffer The buffer to which to write the Thing name.
+ * @param[in,out] pThingNameBufferLength The length of #pThingNameBuffer. The
+ * written length is output here.
+ */
+bool parseRegisterThingResponse( const uint8_t * pResponse,
+                                 size_t length,
+                                 char * pThingNameBuffer,
+                                 size_t * pThingNameBufferLength );

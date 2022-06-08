@@ -766,6 +766,26 @@ static void eventCallback( MQTTContext_t * pMqttContext,
     }
 }
 
+/**
+ * @brief Subscribe to the CreateKeysAndCertificate accepted and rejected topics.
+ */
+static int32_t subscribeToKeyCertificateResponseTopics( void );
+
+/**
+ * @brief Unsubscribe from the CreateKeysAndCertificate accepted and rejected topics.
+ */
+static int32_t unsubscribeFromKeyCertificateResponseTopics( void );
+
+/**
+ * @brief Subscribe to the RegisterThing accepted and rejected topics.
+ */
+static int32_t subscribeToRegisterThingResponseTopics( void );
+
+/**
+ * @brief Unsubscribe from the RegisterThing accepted and rejected topics.
+ */
+static int32_t unsubscribeFromRegisterThingResponseTopics( void );
+
 /*-----------------------------------------------------------*/
 
 static int32_t waitForResponse( void )
@@ -824,6 +844,38 @@ static int32_t subscribeToKeyCertificateResponseTopics( void )
 
 /*-----------------------------------------------------------*/
 
+static int32_t unsubscribeFromKeyCertificateResponseTopics( void )
+{
+    int returnStatus = EXIT_SUCCESS;
+
+    returnStatus = UnsubscribeFromTopic(  FP_CBOR_CREATE_KEYS_ACCEPTED_TOPIC,
+                                        FP_CBOR_CREATE_KEYS_ACCEPTED_LENGTH );
+
+    if( returnStatus != EXIT_SUCCESS )
+    {
+        LogError( ( "Failed to unsubscribe from fleet provisioning topic: %.*s.",
+                    FP_CBOR_CREATE_KEYS_ACCEPTED_LENGTH,
+                    FP_CBOR_CREATE_KEYS_ACCEPTED_TOPIC ) );
+    }
+
+    if( returnStatus == EXIT_SUCCESS )
+    {
+        returnStatus = UnsubscribeFromTopic(  FP_CBOR_CREATE_KEYS_REJECTED_TOPIC,
+                                            FP_CBOR_CREATE_KEYS_REJECTED_LENGTH );
+
+        if( returnStatus != EXIT_SUCCESS )
+        {
+            LogError( ( "Failed to unsubscribe from fleet provisioning topic: %.*s.",
+                        FP_CBOR_CREATE_KEYS_REJECTED_LENGTH,
+                        FP_CBOR_CREATE_KEYS_REJECTED_TOPIC ) );
+        }
+    }
+
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
 static int32_t subscribeToRegisterThingResponseTopics( void )
 {
     int returnStatus = EXIT_SUCCESS;
@@ -846,6 +898,38 @@ static int32_t subscribeToRegisterThingResponseTopics( void )
         if( returnStatus != EXIT_SUCCESS )
         {
             LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
+                        FP_CBOR_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                        FP_CBOR_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+        }
+    }
+
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+static int32_t unsubscribeFromRegisterThingResponseTopics( void )
+{
+    int returnStatus = EXIT_SUCCESS;
+
+    returnStatus = UnsubscribeFromTopic(FP_CBOR_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
+                                        FP_CBOR_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
+
+    if( returnStatus != EXIT_SUCCESS )
+    {
+        LogError( ( "Failed to unsubscribe from fleet provisioning topic: %.*s.",
+                    FP_CBOR_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                    FP_CBOR_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+    }
+
+    if( returnStatus == EXIT_SUCCESS )
+    {
+        returnStatus =UnsubscribeFromTopic( FP_CBOR_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
+                                   FP_CBOR_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
+
+        if( returnStatus != EXIT_SUCCESS )
+        {
+            LogError( ( "Failed to unsubscribe from fleet provisioning topic: %.*s.",
                         FP_CBOR_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
                         FP_CBOR_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
         }
@@ -1033,13 +1117,6 @@ int aws_iot_demo_main( int argc,
             returnStatus = subscribeToKeyCertificateResponseTopics();
         }
 
-        if ( returnStatus == EXIT_SUCCESS )
-        {
-            /* Subscribe to the RegisterThing response topics. */
-            returnStatus = subscribeToRegisterThingResponseTopics();
-        }
-        
-
         // Note: Skipped create a new key and CSR.
 
         // Note: Skipped generateCsrRequest()
@@ -1088,9 +1165,102 @@ int aws_iot_demo_main( int argc,
 
         // Note: Skipped saving certificate into PKCS #11
 
+        if ( returnStatus == EXIT_SUCCESS )
+        {
+            /* Unsubscribe from the CreateKeysAndCertificate topics. */
+            returnStatus = unsubscribeFromKeyCertificateResponseTopics();
+        }
 
+
+        /**** Call the RegisterThing API **************************************/
+
+        /* We then use the RegisterThing API to activate the received certificate,
+         * provision AWS IoT resources according to the provisioning template, and
+         * receive device configuration. */
+        if( returnStatus == EXIT_SUCCESS )
+        {
+            /* Create the request payload to publish to the RegisterThing API. */
+            bool generateStatus = generateRegisterThingRequest( payloadBuffer,
+                                                                NETWORK_BUFFER_SIZE,
+                                                                ownershipToken,
+                                                                ownershipTokenLength,
+                                                                DEVICE_SERIAL_NUMBER,
+                                                                DEVICE_SERIAL_NUMBER_LENGTH,
+                                                                &payloadLength );
+
+            if( generateStatus == true )
+            {
+                LogInfo( ( "generateRegisterThingRequest success" ) );
+                returnStatus = EXIT_SUCCESS;
+            }
+        }
+
+        if ( returnStatus == EXIT_SUCCESS )
+        {
+            /* Subscribe to the RegisterThing response topics. */
+            returnStatus = subscribeToRegisterThingResponseTopics();
+        }
+
+        if( returnStatus == EXIT_SUCCESS )
+        {
+            /* Publish the RegisterThing request. */
+            returnStatus = PublishToTopic(  FP_CBOR_REGISTER_PUBLISH_TOPIC( PROVISIONING_TEMPLATE_NAME ),
+                                            FP_CBOR_REGISTER_PUBLISH_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                                            ( char * ) payloadBuffer,
+                                            payloadLength );
+
+            if( returnStatus != EXIT_SUCCESS )
+            {
+                LogError( ( "Failed to publish to fleet provisioning topic: %.*s.",
+                            FP_CBOR_REGISTER_PUBLISH_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                            FP_CBOR_REGISTER_PUBLISH_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+            }
+        }
+
+        if( returnStatus == EXIT_SUCCESS )
+        {
+            /* Get the response to the RegisterThing request. */
+            returnStatus = waitForResponse();
+        }
+
+        if( returnStatus == EXIT_SUCCESS )
+        {
+            /* Extract the Thing name from the response. */
+            thingNameLength = MAX_THING_NAME_LENGTH;
+            bool parseStatus = parseRegisterThingResponse(  payloadBuffer,
+                                                            payloadLength,
+                                                            thingName,
+                                                            &thingNameLength );
+
+            if( parseStatus == true )
+            {
+                LogInfo( ( "Received AWS IoT Thing name: %.*s", ( int ) thingNameLength, thingName ) );
+                returnStatus = EXIT_SUCCESS;
+            }
+        }
         
+        if( returnStatus == EXIT_SUCCESS )
+        {
+            /* Unsubscribe from the RegisterThing topics. */
+            returnStatus = unsubscribeFromRegisterThingResponseTopics();
+        }
         
+        /**** Disconnect from AWS IoT Core ************************************/
+
+        /* As we have completed the provisioning workflow, we disconnect from
+         * the connection using the provisioning claim credentials. We will
+         * establish a new MQTT connection with the newly provisioned
+         * credentials. */
+        if( connectionEstablished == true )
+        {
+            returnStatus = DisconnectMqttSession();
+            if ( returnStatus == EXIT_SUCCESS )
+            {
+                connectionEstablished = false;
+            }
+        }
+
+        /**** Connect to AWS IoT Core with provisioned certificate ************/
 
         if( returnStatus == EXIT_FAILURE )
         {

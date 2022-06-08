@@ -27,6 +27,71 @@ typedef struct
 
 /*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
+
+bool parseRegisterThingResponse( const uint8_t * pResponse,
+                                 size_t length,
+                                 char * pThingNameBuffer,
+                                 size_t * pThingNameBufferLength )
+{
+    CborError cborRet;
+    CborParser parser;
+    CborValue map;
+    CborValue value;
+
+    assert( pResponse != NULL );
+    assert( pThingNameBuffer != NULL );
+    assert( pThingNameBufferLength != NULL );
+
+    /* For details on the RegisterThing response payload format, see:
+     * https://docs.aws.amazon.com/iot/latest/developerguide/fleet-provision-api.html#register-thing-response-payload
+     */
+    cborRet = cbor_parser_init( pResponse, length, 0, &parser, &map );
+
+    if( cborRet != CborNoError )
+    {
+        LogError( ( "Error initializing parser for RegisterThing response: %s.", cbor_error_string( cborRet ) ) );
+    }
+    else if( !cbor_value_is_map( &map ) )
+    {
+        LogError( ( "RegisterThing response not a map type." ) );
+    }
+    else
+    {
+        cborRet = cbor_value_map_find_value( &map, "thingName", &value );
+
+        if( cborRet != CborNoError )
+        {
+            LogError( ( "Error searching RegisterThing response: %s.", cbor_error_string( cborRet ) ) );
+        }
+        else if( value.type == CborInvalidType )
+        {
+            LogError( ( "\"thingName\" not found in RegisterThing response." ) );
+        }
+        else if( value.type != CborTextStringType )
+        {
+            LogError( ( "\"thingName\" is an unexpected type in RegisterThing response." ) );
+        }
+        else
+        {
+            cborRet = cbor_value_copy_text_string( &value, pThingNameBuffer, pThingNameBufferLength, NULL );
+
+            if( cborRet == CborErrorOutOfMemory )
+            {
+                size_t requiredLen = 0;
+                ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
+                LogError( ( "Thing name buffer insufficiently large. Thing name length: %lu", ( unsigned long ) requiredLen ) );
+            }
+            else if( cborRet != CborNoError )
+            {
+                LogError( ( "Failed to parse \"thingName\" value from RegisterThing response: %s.", cbor_error_string( cborRet ) ) );
+            }
+        }
+    }
+
+    return( cborRet == CborNoError );
+}
+
 /**
  * @brief Printing function to pass to tinyCBOR.
  *
