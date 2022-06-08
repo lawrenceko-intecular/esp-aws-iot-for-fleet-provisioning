@@ -198,7 +198,9 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
                             char * pCertificateIdBuffer,
                             size_t * pCertificateIdBufferLength,
                             char * pOwnershipTokenBuffer,
-                            size_t * pOwnershipTokenBufferLength )
+                            size_t * pOwnershipTokenBufferLength,
+                            char * pPrivateKeyBuffer,
+                            size_t * pPrivateKeyBufferLength )
 {
     CborError cborRet;
     CborParser parser;
@@ -213,6 +215,8 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
     assert( *pCertificateIdBufferLength >= 64 );
     assert( pOwnershipTokenBuffer != NULL );
     assert( pOwnershipTokenBufferLength != NULL );
+    assert( pPrivateKeyBuffer != NULL );
+    assert( pPrivateKeyBufferLength != NULL );
 
     /* For details on the CreateCertificatefromCsr response payload format, see:
      * https://docs.aws.amazon.com/iot/latest/developerguide/fleet-provision-api.html#register-thing-response-payload
@@ -233,15 +237,15 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
 
         if( cborRet != CborNoError )
         {
-            LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+            LogError( ( "Error searching CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
         }
         else if( value.type == CborInvalidType )
         {
-            LogError( ( "\"certificatePem\" not found in CreateCertificateFromCsr response." ) );
+            LogError( ( "\"certificatePem\" not found in CreateKeysAndCertificate response." ) );
         }
         else if( value.type != CborTextStringType )
         {
-            LogError( ( "Value for \"certificatePem\" key in CreateCertificateFromCsr response is not a text string type." ) );
+            LogError( ( "Value for \"certificatePem\" key in CreateKeysAndCertificate response is not a text string type." ) );
         }
         else
         {
@@ -255,7 +259,7 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
             }
             else if( cborRet != CborNoError )
             {
-                LogError( ( "Failed to parse \"certificatePem\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+                LogError( ( "Failed to parse \"certificatePem\" value from CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
             }
         }
     }
@@ -266,15 +270,15 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
 
         if( cborRet != CborNoError )
         {
-            LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+            LogError( ( "Error searching CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
         }
         else if( value.type == CborInvalidType )
         {
-            LogError( ( "\"certificateId\" not found in CreateCertificateFromCsr response." ) );
+            LogError( ( "\"certificateId\" not found in CreateKeysAndCertificate response." ) );
         }
         else if( value.type != CborTextStringType )
         {
-            LogError( ( "\"certificateId\" is an unexpected type in CreateCertificateFromCsr response." ) );
+            LogError( ( "\"certificateId\" is an unexpected type in CreateKeysAndCertificate response." ) );
         }
         else
         {
@@ -288,8 +292,9 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
             }
             else if( cborRet != CborNoError )
             {
-                LogError( ( "Failed to parse \"certificateId\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+                LogError( ( "Failed to parse \"certificateId\" value from CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
             }
+            // LogInfo( ( "Certificate ID given length: %lu", ( unsigned long ) pCertificateIdBufferLength ) );
         }
     }
 
@@ -299,15 +304,15 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
 
         if( cborRet != CborNoError )
         {
-            LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+            LogError( ( "Error searching CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
         }
         else if( value.type == CborInvalidType )
         {
-            LogError( ( "\"certificateOwnershipToken\" not found in CreateCertificateFromCsr response." ) );
+            LogError( ( "\"certificateOwnershipToken\" not found in CreateKeysAndCertificate response." ) );
         }
         else if( value.type != CborTextStringType )
         {
-            LogError( ( "\"certificateOwnershipToken\" is an unexpected type in CreateCertificateFromCsr response." ) );
+            LogError( ( "\"certificateOwnershipToken\" is an unexpected type in CreateKeysAndCertificate response." ) );
         }
         else
         {
@@ -321,7 +326,40 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
             }
             else if( cborRet != CborNoError )
             {
-                LogError( ( "Failed to parse \"certificateOwnershipToken\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+                LogError( ( "Failed to parse \"certificateOwnershipToken\" value from CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
+            }
+        }
+    }
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_value_map_find_value( &map, "privateKey", &value );
+
+        if( cborRet != CborNoError )
+        {
+            LogError( ( "Error searching CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
+        }
+        else if( value.type == CborInvalidType )
+        {
+            LogError( ( "\"privateKey\" not found in CreateKeysAndCertificate response." ) );
+        }
+        else if( value.type != CborTextStringType )
+        {
+            LogError( ( "\"privateKey\" is an unexpected type in CreateKeysAndCertificate response." ) );
+        }
+        else
+        {
+            cborRet = cbor_value_copy_text_string( &value, pPrivateKeyBuffer, pPrivateKeyBufferLength, NULL );
+
+            if( cborRet == CborErrorOutOfMemory )
+            {
+                size_t requiredLen = 0;
+                ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
+                LogError( ( "Private key buffer insufficiently large. Private key buffer length: %lu; given length: %lu", ( unsigned long ) requiredLen, (unsigned long) pPrivateKeyBufferLength ) );
+            }
+            else if( cborRet != CborNoError )
+            {
+                LogError( ( "Failed to parse \"privateKey\" value from CreateKeysAndCertificate response: %s.", cbor_error_string( cborRet ) ) );
             }
         }
     }

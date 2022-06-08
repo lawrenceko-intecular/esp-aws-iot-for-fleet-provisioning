@@ -129,6 +129,11 @@
 #define OWNERSHIP_TOKEN_BUFFER_LENGTH                  512
 
 /**
+ * @brief Size of buffer in which to hold the private key.
+ */
+#define PRIV_KEY_BUFFER_LENGTH                             2048
+
+/**
  * @brief Status values of the Fleet Provisioning response.
  */
 typedef enum
@@ -1016,7 +1021,7 @@ static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
                 LogError( ( "Received rejected response from Fleet Provisioning CreateKeysAndCertificate API." ) );
                 
                 cborDump = pDeserializedInfo->pPublishInfo->pPayload;
-                LogError( ( "Payload: %s", cborDump ) );
+                // LogError( ( "Payload: %s", cborDump ) );
 
                 responseStatus = ResponseRejected;
             }
@@ -1025,7 +1030,7 @@ static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
                 LogInfo( ( "Received accepted response from Fleet Provisioning RegisterThing API." ) );
 
                 cborDump = pDeserializedInfo->pPublishInfo->pPayload;
-                LogInfo( ( "Payload: %s", cborDump ) );
+                // LogInfo( ( "Payload: %s", cborDump ) );
 
                 responseStatus = ResponseAccepted;
 
@@ -1041,7 +1046,7 @@ static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
                 LogError( ( "Received rejected response from Fleet Provisioning RegisterThing API." ) );
 
                 cborDump = pDeserializedInfo->pPublishInfo->pPayload;
-                LogError( ( "Payload: %s", cborDump ) );
+                // LogError( ( "Payload: %s", cborDump ) );
 
                 responseStatus = ResponseRejected;
             }
@@ -1073,6 +1078,9 @@ int aws_iot_demo_main( int argc,
     /* Buffer for holding the certificate ownership token. */
     char ownershipToken[ OWNERSHIP_TOKEN_BUFFER_LENGTH ];
     size_t ownershipTokenLength;
+    /* Buffer for holding the private key. */
+    char privateKey[ PRIV_KEY_BUFFER_LENGTH ];
+    size_t privateKeyLength;
     bool connectionEstablished = false;
 
     /* Silence compiler warnings about unused variables. */
@@ -1085,6 +1093,7 @@ int aws_iot_demo_main( int argc,
         certificateLength = CERT_BUFFER_LENGTH;
         certificateIdLength = CERT_ID_BUFFER_LENGTH;
         ownershipTokenLength = OWNERSHIP_TOKEN_BUFFER_LENGTH;
+        privateKeyLength = PRIV_KEY_BUFFER_LENGTH;
 
         // TODO: Initialize the PKCS #11 module
 
@@ -1154,11 +1163,16 @@ int aws_iot_demo_main( int argc,
                                                         certificateId,
                                                         &certificateIdLength,
                                                         ownershipToken,
-                                                        &ownershipTokenLength );
+                                                        &ownershipTokenLength,
+                                                        privateKey,
+                                                        &privateKeyLength );
 
             if( parseStatus == true )
             {
+                LogInfo( ( "Received certificate: %.*s", ( int ) certificateLength, certificate ) );
                 LogInfo( ( "Received certificate with Id: %.*s", ( int ) certificateIdLength, certificateId ) );
+                LogInfo( ( "Received ownershipToken: %.*s", ( int ) ownershipTokenLength, ownershipToken ) );
+                LogInfo( ( "Received privateKey: %.*s", ( int ) privateKeyLength, privateKey ) );
                 returnStatus = EXIT_SUCCESS;
             }
         }
@@ -1262,29 +1276,29 @@ int aws_iot_demo_main( int argc,
 
         /**** Connect to AWS IoT Core with provisioned certificate ************/
 
-        if( returnStatus == EXIT_FAILURE )
-        {
-            /* Log error to indicate connection failure. */
-            LogError( ( "Failed to connect to MQTT broker." ) );
-        }
-        else
-        {
+        // if( returnStatus == EXIT_FAILURE )
+        // {
+        //     /* Log error to indicate connection failure. */
+        //     LogError( ( "Failed to connect to MQTT broker." ) );
+        // }
+        // else
+        // {
             
 
-            /* The MQTT session is always disconnected, even there were prior failures. */
-            returnStatus = DisconnectMqttSession();
-        }
+        //     /* The MQTT session is always disconnected, even there were prior failures. */
+        //     returnStatus = DisconnectMqttSession();
+        // }
 
-        /* This demo performs only Device Shadow operations. If matching the Shadow
-         * topic fails or there are failures in parsing the received CBOR document,
-         * then this demo was not successful. */
-        if( eventCallbackError == true )
-        {
-            returnStatus = EXIT_FAILURE;
-        }
+        // /* This demo performs only Device Shadow operations. If matching the Shadow
+        //  * topic fails or there are failures in parsing the received CBOR document,
+        //  * then this demo was not successful. */
+        // if( eventCallbackError == true )
+        // {
+        //     returnStatus = EXIT_FAILURE;
+        // }
 
-        
-    } while( returnStatus != EXIT_SUCCESS );
+    } while (0);
+    // } while( returnStatus != EXIT_SUCCESS );
 
     if( returnStatus == EXIT_SUCCESS )
     {
