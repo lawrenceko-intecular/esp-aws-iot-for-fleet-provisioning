@@ -360,9 +360,9 @@ static void eventCallback( MQTTContext_t * pMqttContext,
  * @param[in] pPacketInfo Packet Info pointer for the incoming packet.
  * @param[in] pDeserializedInfo Deserialized information from the incoming packet.
  */
-static void provisioningPublishCallback( MQTTContext_t * pMqttContext,
-                                         MQTTPublishInfo_t * pPublishInfo,
-                                         MQTTDeserializedInfo_t * pDeserializedInfo );
+static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
+                                            MQTTPacketInfo_t * pPacketInfo,
+                                            MQTTDeserializedInfo_t * pDeserializedInfo );
 
 /**
  * @brief Process payload from /update/delta topic.
@@ -796,26 +796,26 @@ static int32_t subscribeToKeyCertificateResponseTopics( void )
 {
     int returnStatus = EXIT_SUCCESS;
 
-    returnStatus = SubscribeToTopic( FP_JSON_CREATE_KEYS_ACCEPTED_TOPIC,
-                                     FP_JSON_CREATE_KEYS_ACCEPTED_LENGTH );
+    returnStatus = SubscribeToTopic( FP_CBOR_CREATE_KEYS_ACCEPTED_TOPIC,
+                                     FP_CBOR_CREATE_KEYS_ACCEPTED_LENGTH );
 
     if( returnStatus != EXIT_SUCCESS )
     {
         LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
-                    FP_JSON_CREATE_KEYS_ACCEPTED_LENGTH,
-                    FP_JSON_CREATE_KEYS_ACCEPTED_TOPIC ) );
+                    FP_CBOR_CREATE_KEYS_ACCEPTED_LENGTH,
+                    FP_CBOR_CREATE_KEYS_ACCEPTED_TOPIC ) );
     }
 
     if( returnStatus == EXIT_SUCCESS )
     {
-        returnStatus = SubscribeToTopic( FP_JSON_CREATE_KEYS_REJECTED_TOPIC,
-                                   FP_JSON_CREATE_KEYS_REJECTED_LENGTH );
+        returnStatus = SubscribeToTopic( FP_CBOR_CREATE_KEYS_REJECTED_TOPIC,
+                                   FP_CBOR_CREATE_KEYS_REJECTED_LENGTH );
 
         if( returnStatus != EXIT_SUCCESS )
         {
             LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
-                        FP_JSON_CREATE_KEYS_REJECTED_LENGTH,
-                        FP_JSON_CREATE_KEYS_REJECTED_TOPIC ) );
+                        FP_CBOR_CREATE_KEYS_REJECTED_LENGTH,
+                        FP_CBOR_CREATE_KEYS_REJECTED_TOPIC ) );
         }
     }
 
@@ -828,26 +828,26 @@ static int32_t subscribeToRegisterThingResponseTopics( void )
 {
     int returnStatus = EXIT_SUCCESS;
 
-    returnStatus = SubscribeToTopic( FP_JSON_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
-                                     FP_JSON_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
+    returnStatus = SubscribeToTopic( FP_CBOR_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
+                                     FP_CBOR_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
 
     if( returnStatus != EXIT_SUCCESS )
     {
         LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
-                    FP_JSON_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
-                    FP_JSON_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+                    FP_CBOR_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                    FP_CBOR_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
     }
 
     if( returnStatus == EXIT_SUCCESS )
     {
-        returnStatus = SubscribeToTopic( FP_JSON_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
-                                   FP_JSON_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
+        returnStatus = SubscribeToTopic( FP_CBOR_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
+                                   FP_CBOR_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
 
         if( returnStatus != EXIT_SUCCESS )
         {
             LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
-                        FP_JSON_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
-                        FP_JSON_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+                        FP_CBOR_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                        FP_CBOR_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
         }
     }
 
@@ -862,118 +862,111 @@ static int32_t subscribeToRegisterThingResponseTopics( void )
  * or not. If it is, it handles the message depending on the message type.
  */
 static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
-                                            MQTTPublishInfo_t * pPublishInfo,
+                                            MQTTPacketInfo_t * pPacketInfo,
                                             MQTTDeserializedInfo_t * pDeserializedInfo )
 {
     uint16_t packetIdentifier;
 
     FleetProvisioningStatus_t status;
     FleetProvisioningTopic_t api;
-    const char * jsonDump;
+    const char * cborDump;
 
     ( void ) pMqttContext;
 
     assert( pDeserializedInfo != NULL );
     assert( pMqttContext != NULL );
-    assert( pPublishInfo != NULL );
+    assert( pPacketInfo != NULL );
 
     packetIdentifier = pDeserializedInfo->packetIdentifier;
 
-    status = FleetProvisioning_MatchTopic( pPublishInfo->pTopicName,
-                                           pPublishInfo->topicNameLength, &api );
+    /* Handle incoming publish. The lower 4 bits of the publish packet
+     * type is used for the dup, QoS, and retain flags. Hence masking
+     * out the lower bits to check if the packet is publish. */
+    if ( ( pPacketInfo->type & 0xF0U ) == MQTT_PACKET_TYPE_PUBLISH )
+    {
+        assert( pDeserializedInfo->pPublishInfo != NULL );
+        // LogInfo( ( "pPublishInfo->pTopicName:%s.", pDeserializedInfo->pPublishInfo->pTopicName ) );
+        // LogInfo( ( "cbor payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
 
-    // LogInfo( ( "pPublishInfo->pTopicName:%s.", pDeserializedInfo->pPublishInfo->pTopicName ) );
-    // LogInfo( ( "json payload:%s.", pDeserializedInfo->pPublishInfo->pPayload ) );
+        /* Let the Device Shadow library tell us whether this is a device shadow message. */
+        status = FleetProvisioning_MatchTopic(  pDeserializedInfo->pPublishInfo->pTopicName,
+                                                pDeserializedInfo->pPublishInfo->topicNameLength, &api );
 
-    if ( status == FleetProvisioningError )
-    {
-        LogError( ( "FleetProvisioningError" ) );
-    }
-    else if ( status == FleetProvisioningSuccess )
-    {
-        LogInfo( ( "FleetProvisioningSuccess" ) );
-    }
-    else if ( status == FleetProvisioningNoMatch )
-    {
-        LogError( ( "FleetProvisioningNoMatch" ) );
-    }
-    else if ( status == FleetProvisioningBadParameter )
-    {
-        LogError( ( "FleetProvisioningBadParameter" ) );
-    }
-    else if ( status == FleetProvisioningBufferTooSmall )
-    {
-        LogError( ( "FleetProvisioningBufferTooSmall" ) );
-    }
-
-    if( status != FleetProvisioningSuccess )
-    {
-        // NOTE: Cause LoadProhibited error
-        // LogWarn( ( "Unexpected publish message received. Topic: %.*s.",
-        //            ( int ) pPublishInfo->topicNameLength,
-        //            ( const char * ) pPublishInfo->pTopicName ) );
-    }
-    else
-    {
-        if( api == FleetProvJsonCreateKeysAndCertAccepted )
+        if ( status == FleetProvisioningError )
         {
-            LogInfo( ( "Received accepted response from Fleet Provisioning CreateKeysAndCertificate API." ) );
-            
-            jsonDump = pPublishInfo->pPayload;
-            LogInfo( ( "Payload: %s", jsonDump ) );
-            free( ( void * ) jsonDump );
-
-            responseStatus = ResponseAccepted;
-
-            /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
-            ( void ) memcpy( ( void * ) payloadBuffer,
-                             ( const void * ) pPublishInfo->pPayload,
-                             ( size_t ) pPublishInfo->payloadLength );
-
-            payloadLength = pPublishInfo->payloadLength;
+            LogError( ( "FleetProvisioningError" ) );
         }
-        else if( api == FleetProvJsonCreateKeysAndCertRejected )
+        else if ( status == FleetProvisioningNoMatch )
         {
-            LogError( ( "Received rejected response from Fleet Provisioning CreateKeysAndCertificate API." ) );
-            
-            jsonDump = pPublishInfo->pPayload;
-            LogError( ( "Payload: %s", jsonDump ) );
-            free( ( void * ) jsonDump );
-
-            responseStatus = ResponseRejected;
+            LogError( ( "FleetProvisioningNoMatch" ) );
         }
-        else if( api == FleetProvJsonRegisterThingAccepted )
+        else if ( status == FleetProvisioningBadParameter )
         {
-            LogInfo( ( "Received accepted response from Fleet Provisioning RegisterThing API." ) );
-
-            jsonDump = pPublishInfo->pPayload;
-            LogInfo( ( "Payload: %s", jsonDump ) );
-            free( ( void * ) jsonDump );
-
-            responseStatus = ResponseAccepted;
-
-            /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
-            ( void ) memcpy( ( void * ) payloadBuffer,
-                             ( const void * ) pPublishInfo->pPayload,
-                             ( size_t ) pPublishInfo->payloadLength );
-
-            payloadLength = pPublishInfo->payloadLength;
+            LogError( ( "FleetProvisioningBadParameter" ) );
         }
-        else if( api == FleetProvJsonRegisterThingRejected )
+        else if ( status == FleetProvisioningBufferTooSmall )
         {
-            LogError( ( "Received rejected response from Fleet Provisioning RegisterThing API." ) );
-
-            jsonDump = pPublishInfo->pPayload;
-            LogError( ( "Payload: %s", jsonDump ) );
-            free( ( void * ) jsonDump );
-
-            responseStatus = ResponseRejected;
+            LogError( ( "FleetProvisioningBufferTooSmall" ) );
         }
-        else
+        else if ( status == FleetProvisioningSuccess )
         {
-            LogError( ( "Received message on unexpected Fleet Provisioning topic. Topic: %.*s.",
-                        ( int ) pPublishInfo->topicNameLength,
-                        ( const char * ) pPublishInfo->pTopicName ) );
+            LogInfo( ( "FleetProvisioningSuccess" ) );
+            if( api == FleetProvCborCreateKeysAndCertAccepted )
+            {
+                LogInfo( ( "Received accepted response from Fleet Provisioning CreateKeysAndCertificate API." ) );
+                
+                cborDump = pDeserializedInfo->pPublishInfo->pPayload;
+                // LogInfo( ( "Payload: %s", cborDump ) );
+
+                responseStatus = ResponseAccepted;
+
+                /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
+                ( void ) memcpy( ( void * ) payloadBuffer,
+                                ( const void * ) pDeserializedInfo->pPublishInfo->pPayload,
+                                ( size_t ) pDeserializedInfo->pPublishInfo->payloadLength );
+
+                payloadLength = pDeserializedInfo->pPublishInfo->payloadLength;
+            }
+            else if( api == FleetProvCborCreateKeysAndCertRejected )
+            {
+                LogError( ( "Received rejected response from Fleet Provisioning CreateKeysAndCertificate API." ) );
+                
+                cborDump = pDeserializedInfo->pPublishInfo->pPayload;
+                LogError( ( "Payload: %s", cborDump ) );
+
+                responseStatus = ResponseRejected;
+            }
+            else if( api == FleetProvCborRegisterThingAccepted )
+            {
+                LogInfo( ( "Received accepted response from Fleet Provisioning RegisterThing API." ) );
+
+                cborDump = pDeserializedInfo->pPublishInfo->pPayload;
+                LogInfo( ( "Payload: %s", cborDump ) );
+
+                responseStatus = ResponseAccepted;
+
+                /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
+                ( void ) memcpy( ( void * ) payloadBuffer,
+                                ( const void * ) pDeserializedInfo->pPublishInfo->pPayload,
+                                ( size_t ) pDeserializedInfo->pPublishInfo->payloadLength );
+
+                payloadLength = pDeserializedInfo->pPublishInfo->payloadLength;
+            }
+            else if( api == FleetProvCborRegisterThingRejected )
+            {
+                LogError( ( "Received rejected response from Fleet Provisioning RegisterThing API." ) );
+
+                cborDump = pDeserializedInfo->pPublishInfo->pPayload;
+                LogError( ( "Payload: %s", cborDump ) );
+
+                responseStatus = ResponseRejected;
+            }
+            else
+            {
+                LogError( ( "Received message on unexpected Fleet Provisioning topic. Topic: %.*s.",
+                            ( int ) pDeserializedInfo->pPublishInfo->topicNameLength,
+                            ( const char * ) pDeserializedInfo->pPublishInfo->pTopicName ) );
+            }
         }
     }
 }
@@ -1017,7 +1010,7 @@ int aws_iot_demo_main( int argc,
          * connection fails, retries after a timeout. Timeout value will
          * exponentially increase until maximum attempts are reached. */
         LogInfo( ( "Establishing MQTT session with claim certificate..." ) );
-        returnStatus = EstablishMqttSession( eventCallback );
+        returnStatus = EstablishMqttSession( provisioningPublishCallback );
 
         if( returnStatus != EXIT_SUCCESS )
         {
@@ -1035,8 +1028,8 @@ int aws_iot_demo_main( int argc,
         if( returnStatus == EXIT_SUCCESS )
         {
             /* Subscribe to the CreateKeysAndCertificate accepted and rejected
-             * topics. In this demo we use JSON encoding for the payloads,
-             * so we use the JSON variants of the topics. */
+             * topics. In this demo we use CBOR encoding for the payloads,
+             * so we use the CBOR variants of the topics. */
             returnStatus = subscribeToKeyCertificateResponseTopics();
         }
 
@@ -1047,23 +1040,23 @@ int aws_iot_demo_main( int argc,
         }
         
 
-        // // Note: Skipped create a new key and CSR.
+        // Note: Skipped create a new key and CSR.
 
-        // // Note: Skipped generateCsrRequest()
+        // Note: Skipped generateCsrRequest()
 
         if ( returnStatus == EXIT_SUCCESS )
         {
             /* Publish to the CreateKeysAndCertificate API. */
-            returnStatus = PublishToTopic( FP_JSON_CREATE_KEYS_PUBLISH_TOPIC,
-                            FP_JSON_CREATE_KEYS_PUBLISH_LENGTH,
+            returnStatus = PublishToTopic( FP_CBOR_CREATE_KEYS_PUBLISH_TOPIC,
+                            FP_CBOR_CREATE_KEYS_PUBLISH_LENGTH,
                             ( char * ) payloadBuffer,
                             payloadLength );
 
             if( returnStatus == EXIT_FAILURE )
             {
                 LogError( ( "Failed to publish to fleet provisioning topic: %.*s.",
-                            FP_JSON_CREATE_KEYS_PUBLISH_LENGTH,
-                            FP_JSON_CREATE_KEYS_PUBLISH_TOPIC ) );
+                            FP_CBOR_CREATE_KEYS_PUBLISH_LENGTH,
+                            FP_CBOR_CREATE_KEYS_PUBLISH_TOPIC ) );
             }
         }
 
@@ -1073,25 +1066,29 @@ int aws_iot_demo_main( int argc,
         //     returnStatus = waitForResponse();
         // }
         
-        // if( returnStatus == EXIT_SUCCESS )
-        // {
-        //     /* From the response, extract the certificate, certificate ID, and
-        //      * certificate ownership token. */
-        //     LogInfo( ( "Parsing recieved data" ) );
-        //     returnStatus = parseKeyCertResponse(    payloadBuffer,
-        //                                             payloadLength,
-        //                                             certificate,
-        //                                             &certificateLength,
-        //                                             certificateId,
-        //                                             &certificateIdLength,
-        //                                             ownershipToken,
-        //                                             &ownershipTokenLength );
+        if( returnStatus == EXIT_SUCCESS )
+        {
+            /* From the response, extract the certificate, certificate ID, and
+             * certificate ownership token. */
+            bool parseStatus = parseKeyCertResponse(    payloadBuffer,
+                                                        payloadLength,
+                                                        certificate,
+                                                        &certificateLength,
+                                                        certificateId,
+                                                        &certificateIdLength,
+                                                        ownershipToken,
+                                                        &ownershipTokenLength );
 
-        //     if( returnStatus == EXIT_SUCCESS )
-        //     {
-        //         LogInfo( ( "Received certificate with Id: %.*s", ( int ) certificateIdLength, certificateId ) );
-        //     }
-        // }
+            if( parseStatus == true )
+            {
+                LogInfo( ( "Received certificate with Id: %.*s", ( int ) certificateIdLength, certificateId ) );
+                returnStatus = EXIT_SUCCESS;
+            }
+        }
+
+        // Note: Skipped saving certificate into PKCS #11
+
+
         
         
 
@@ -1109,7 +1106,7 @@ int aws_iot_demo_main( int argc,
         }
 
         /* This demo performs only Device Shadow operations. If matching the Shadow
-         * topic fails or there are failures in parsing the received JSON document,
+         * topic fails or there are failures in parsing the received CBOR document,
          * then this demo was not successful. */
         if( eventCallbackError == true )
         {

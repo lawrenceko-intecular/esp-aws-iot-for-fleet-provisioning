@@ -1,6 +1,9 @@
 /* Standard includes */
 #include <stdarg.h>
 
+/* TinyCBOR library for CBOR encoding and decoding operations. */
+#include "cbor.h"
+
 /* Demo config. */
 #include "demo_config.h"
 
@@ -10,6 +13,116 @@
 /* Header include. */
 #include "fleet_provisioning_serializer.h"
 
+/*-----------------------------------------------------------*/
+
+/**
+ * @brief Context passed to tinyCBOR for #cborPrinter. Initial
+ * state should be zeroed.
+ */
+typedef struct
+{
+    const char * str;
+    size_t length;
+} CborPrintContext_t;
+
+/*-----------------------------------------------------------*/
+
+/**
+ * @brief Printing function to pass to tinyCBOR.
+ *
+ * cbor_value_to_pretty_stream calls it multiple times to print a textual CBOR
+ * representation.
+ *
+ * @param token Context for the function.
+ * @param fmt Printf style format string.
+ * @param ... Printf style args after format string.
+ */
+static CborError cborPrinter( void * token,
+                              const char * fmt,
+                              ... );
+
+/*-----------------------------------------------------------*/
+
+bool generateRegisterThingRequest( uint8_t * pBuffer,
+                                   size_t bufferLength,
+                                   const char * pCertificateOwnershipToken,
+                                   size_t certificateOwnershipTokenLength,
+                                   const char * pSerial,
+                                   size_t serialLength,
+                                   size_t * pOutLengthWritten )
+{
+    CborEncoder encoder, mapEncoder, parametersEncoder;
+    CborError cborRet;
+
+    assert( pBuffer != NULL );
+    assert( pCertificateOwnershipToken != NULL );
+    assert( pSerial != NULL );
+    assert( pOutLengthWritten != NULL );
+
+    /* For details on the RegisterThing request payload format, see:
+     * https://docs.aws.amazon.com/iot/latest/developerguide/fleet-provision-api.html#register-thing-request-payload
+     */
+    cbor_encoder_init( &encoder, pBuffer, bufferLength, 0 );
+    /* The RegisterThing request payload is a map with two keys. */
+    cborRet = cbor_encoder_create_map( &encoder, &mapEncoder, 2 );
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_encode_text_stringz( &mapEncoder, "certificateOwnershipToken" );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_encode_text_string( &mapEncoder, pCertificateOwnershipToken, certificateOwnershipTokenLength );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_encode_text_stringz( &mapEncoder, "parameters" );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        /* Parameters in this example is length 1. */
+        cborRet = cbor_encoder_create_map( &mapEncoder, &parametersEncoder, 1 );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_encode_text_stringz( &parametersEncoder, "SerialNumber" );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_encode_text_string( &parametersEncoder, pSerial, serialLength );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_encoder_close_container( &mapEncoder, &parametersEncoder );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_encoder_close_container( &encoder, &mapEncoder );
+    }
+
+    if( cborRet == CborNoError )
+    {
+        *pOutLengthWritten = cbor_encoder_get_buffer_size( &encoder, ( uint8_t * ) pBuffer );
+    }
+    else
+    {
+        LogError( ( "Error during CBOR encoding: %s", cbor_error_string( cborRet ) ) );
+
+        if( ( cborRet & CborErrorOutOfMemory ) != 0 )
+        {
+            LogError( ( "Cannot fit RegisterThing request payload into buffer." ) );
+        }
+    }
+
+    return( cborRet == CborNoError );
+}
 
 /*-----------------------------------------------------------*/
 
@@ -22,6 +135,11 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
                             char * pOwnershipTokenBuffer,
                             size_t * pOwnershipTokenBufferLength )
 {
+    CborError cborRet;
+    CborParser parser;
+    CborValue map;
+    CborValue value;
+
     assert( pResponse != NULL );
     assert( pCertificateBuffer != NULL );
     assert( pCertificateBufferLength != NULL );
@@ -31,118 +149,117 @@ bool parseKeyCertResponse(  const uint8_t * pResponse,
     assert( pOwnershipTokenBuffer != NULL );
     assert( pOwnershipTokenBufferLength != NULL );
 
-    /* For details on the CreateKeysAndCertificate response payload format, see:
+    /* For details on the CreateCertificatefromCsr response payload format, see:
      * https://docs.aws.amazon.com/iot/latest/developerguide/fleet-provision-api.html#register-thing-response-payload
      */
-    LogInfo( ( "Recieved JSON response: %s", pResponse ) );
-    // cborRet = cbor_parser_init( pResponse, length, 0, &parser, &map );
+    cborRet = cbor_parser_init( pResponse, length, 0, &parser, &map );
 
-    // if( cborRet != CborNoError )
-    // {
-    //     LogError( ( "Error initializing parser for CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
-    // }
-    // else if( !cbor_value_is_map( &map ) )
-    // {
-    //     LogError( ( "CreateCertificateFromCsr response is not a valid map container type." ) );
-    // }
-    // else
-    // {
-    //     cborRet = cbor_value_map_find_value( &map, "certificatePem", &value );
+    if( cborRet != CborNoError )
+    {
+        LogError( ( "Error initializing parser for CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+    }
+    else if( !cbor_value_is_map( &map ) )
+    {
+        LogError( ( "CreateCertificateFromCsr response is not a valid map container type." ) );
+    }
+    else
+    {
+        cborRet = cbor_value_map_find_value( &map, "certificatePem", &value );
 
-    //     if( cborRet != CborNoError )
-    //     {
-    //         LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
-    //     }
-    //     else if( value.type == CborInvalidType )
-    //     {
-    //         LogError( ( "\"certificatePem\" not found in CreateCertificateFromCsr response." ) );
-    //     }
-    //     else if( value.type != CborTextStringType )
-    //     {
-    //         LogError( ( "Value for \"certificatePem\" key in CreateCertificateFromCsr response is not a text string type." ) );
-    //     }
-    //     else
-    //     {
-    //         cborRet = cbor_value_copy_text_string( &value, pCertificateBuffer, pCertificateBufferLength, NULL );
+        if( cborRet != CborNoError )
+        {
+            LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+        }
+        else if( value.type == CborInvalidType )
+        {
+            LogError( ( "\"certificatePem\" not found in CreateCertificateFromCsr response." ) );
+        }
+        else if( value.type != CborTextStringType )
+        {
+            LogError( ( "Value for \"certificatePem\" key in CreateCertificateFromCsr response is not a text string type." ) );
+        }
+        else
+        {
+            cborRet = cbor_value_copy_text_string( &value, pCertificateBuffer, pCertificateBufferLength, NULL );
 
-    //         if( cborRet == CborErrorOutOfMemory )
-    //         {
-    //             size_t requiredLen = 0;
-    //             ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
-    //             LogError( ( "Certificate buffer insufficiently large. Certificate length: %lu", ( unsigned long ) requiredLen ) );
-    //         }
-    //         else if( cborRet != CborNoError )
-    //         {
-    //             LogError( ( "Failed to parse \"certificatePem\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
-    //         }
-    //     }
-    // }
+            if( cborRet == CborErrorOutOfMemory )
+            {
+                size_t requiredLen = 0;
+                ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
+                LogError( ( "Certificate buffer insufficiently large. Certificate length: %lu", ( unsigned long ) requiredLen ) );
+            }
+            else if( cborRet != CborNoError )
+            {
+                LogError( ( "Failed to parse \"certificatePem\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+            }
+        }
+    }
 
-    // if( cborRet == CborNoError )
-    // {
-    //     cborRet = cbor_value_map_find_value( &map, "certificateId", &value );
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_value_map_find_value( &map, "certificateId", &value );
 
-    //     if( cborRet != CborNoError )
-    //     {
-    //         LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
-    //     }
-    //     else if( value.type == CborInvalidType )
-    //     {
-    //         LogError( ( "\"certificateId\" not found in CreateCertificateFromCsr response." ) );
-    //     }
-    //     else if( value.type != CborTextStringType )
-    //     {
-    //         LogError( ( "\"certificateId\" is an unexpected type in CreateCertificateFromCsr response." ) );
-    //     }
-    //     else
-    //     {
-    //         cborRet = cbor_value_copy_text_string( &value, pCertificateIdBuffer, pCertificateIdBufferLength, NULL );
+        if( cborRet != CborNoError )
+        {
+            LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+        }
+        else if( value.type == CborInvalidType )
+        {
+            LogError( ( "\"certificateId\" not found in CreateCertificateFromCsr response." ) );
+        }
+        else if( value.type != CborTextStringType )
+        {
+            LogError( ( "\"certificateId\" is an unexpected type in CreateCertificateFromCsr response." ) );
+        }
+        else
+        {
+            cborRet = cbor_value_copy_text_string( &value, pCertificateIdBuffer, pCertificateIdBufferLength, NULL );
 
-    //         if( cborRet == CborErrorOutOfMemory )
-    //         {
-    //             size_t requiredLen = 0;
-    //             ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
-    //             LogError( ( "Certificate ID buffer insufficiently large. Certificate ID length: %lu", ( unsigned long ) requiredLen ) );
-    //         }
-    //         else if( cborRet != CborNoError )
-    //         {
-    //             LogError( ( "Failed to parse \"certificateId\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
-    //         }
-    //     }
-    // }
+            if( cborRet == CborErrorOutOfMemory )
+            {
+                size_t requiredLen = 0;
+                ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
+                LogError( ( "Certificate ID buffer insufficiently large. Certificate ID length: %lu", ( unsigned long ) requiredLen ) );
+            }
+            else if( cborRet != CborNoError )
+            {
+                LogError( ( "Failed to parse \"certificateId\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+            }
+        }
+    }
 
-    // if( cborRet == CborNoError )
-    // {
-    //     cborRet = cbor_value_map_find_value( &map, "certificateOwnershipToken", &value );
+    if( cborRet == CborNoError )
+    {
+        cborRet = cbor_value_map_find_value( &map, "certificateOwnershipToken", &value );
 
-    //     if( cborRet != CborNoError )
-    //     {
-    //         LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
-    //     }
-    //     else if( value.type == CborInvalidType )
-    //     {
-    //         LogError( ( "\"certificateOwnershipToken\" not found in CreateCertificateFromCsr response." ) );
-    //     }
-    //     else if( value.type != CborTextStringType )
-    //     {
-    //         LogError( ( "\"certificateOwnershipToken\" is an unexpected type in CreateCertificateFromCsr response." ) );
-    //     }
-    //     else
-    //     {
-    //         cborRet = cbor_value_copy_text_string( &value, pOwnershipTokenBuffer, pOwnershipTokenBufferLength, NULL );
+        if( cborRet != CborNoError )
+        {
+            LogError( ( "Error searching CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+        }
+        else if( value.type == CborInvalidType )
+        {
+            LogError( ( "\"certificateOwnershipToken\" not found in CreateCertificateFromCsr response." ) );
+        }
+        else if( value.type != CborTextStringType )
+        {
+            LogError( ( "\"certificateOwnershipToken\" is an unexpected type in CreateCertificateFromCsr response." ) );
+        }
+        else
+        {
+            cborRet = cbor_value_copy_text_string( &value, pOwnershipTokenBuffer, pOwnershipTokenBufferLength, NULL );
 
-    //         if( cborRet == CborErrorOutOfMemory )
-    //         {
-    //             size_t requiredLen = 0;
-    //             ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
-    //             LogError( ( "Certificate ownership token buffer insufficiently large. Certificate ownership token buffer length: %lu", ( unsigned long ) requiredLen ) );
-    //         }
-    //         else if( cborRet != CborNoError )
-    //         {
-    //             LogError( ( "Failed to parse \"certificateOwnershipToken\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
-    //         }
-    //     }
-    // }
+            if( cborRet == CborErrorOutOfMemory )
+            {
+                size_t requiredLen = 0;
+                ( void ) cbor_value_calculate_string_length( &value, &requiredLen );
+                LogError( ( "Certificate ownership token buffer insufficiently large. Certificate ownership token buffer length: %lu", ( unsigned long ) requiredLen ) );
+            }
+            else if( cborRet != CborNoError )
+            {
+                LogError( ( "Failed to parse \"certificateOwnershipToken\" value from CreateCertificateFromCsr response: %s.", cbor_error_string( cborRet ) ) );
+            }
+        }
+    }
 
-    return( 1 );
+    return( cborRet == CborNoError );
 }

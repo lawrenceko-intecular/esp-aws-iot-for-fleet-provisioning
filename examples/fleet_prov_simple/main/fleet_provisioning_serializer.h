@@ -9,6 +9,26 @@
 #include <stdbool.h>
 
 /**
+ * @brief Creates the request payload to be published to the RegisterThing API
+ * in order to activate the provisioned certificate and receive a Thing name.
+ *
+ * @param[in] pBuffer Buffer into which to write the publish request payload.
+ * @param[in] bufferLength Length of #buffer.
+ * @param[in] pCertificateOwnershipToken The certificate's certificate
+ * ownership token.
+ * @param[in] certificateOwnershipTokenLength Length of
+ * #certificateOwnershipToken.
+ * @param[out] pOutLengthWritten The length of the publish request payload.
+ */
+bool generateRegisterThingRequest( uint8_t * pBuffer,
+                                   size_t bufferLength,
+                                   const char * pCertificateOwnershipToken,
+                                   size_t certificateOwnershipTokenLength,
+                                   const char * pSerial,
+                                   size_t serialLength,
+                                   size_t * pOutLengthWritten );
+                                   
+/**
  * @brief Extracts the certificate, certificate ID, and certificate ownership
  * token from a CreateKeysAndCertificate accepted response. These are copied
  * to the provided buffers so that they can outlive the data in the response
