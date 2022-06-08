@@ -947,7 +947,7 @@ bool ProcessLoop( void )
     }
     else
     {
-        LogDebug( ( "MQTT_ProcessLoop successful." ) );
+        LogInfo( ( "MQTT_ProcessLoop successful." ) );
         returnStatus = true;
     }
 

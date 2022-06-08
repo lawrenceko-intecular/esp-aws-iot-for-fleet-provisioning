@@ -113,7 +113,7 @@
 /**
  * @brief Size of the network buffer for MQTT packets.
  */
-#define NETWORK_BUFFER_SIZE       ( CONFIG_MQTT_NETWORK_BUFFER_SIZE )
+#define NETWORK_BUFFER_SIZE       ( 4096 )
 
 /**
  * @brief The name of the operating system that the application is running on.

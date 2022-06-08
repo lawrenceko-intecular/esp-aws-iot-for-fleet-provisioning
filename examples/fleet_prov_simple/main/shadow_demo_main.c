@@ -881,39 +881,56 @@ static void provisioningPublishCallback( MQTTContext_t * pMqttContext,
         if( api == FleetProvJsonCreateKeysAndCertAccepted )
         {
             LogInfo( ( "Received accepted response from Fleet Provisioning CreateKeysAndCertificate API." ) );
-            // Note: Not using CSR in this example
+            
+            jsonDump = pPublishInfo->pPayload;
+            LogInfo( ( "Payload: %s", jsonDump ) );
+            free( ( void * ) jsonDump );
+
+            responseStatus = ResponseAccepted;
+
+            /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
+            ( void ) memcpy( ( void * ) payloadBuffer,
+                             ( const void * ) pPublishInfo->pPayload,
+                             ( size_t ) pPublishInfo->payloadLength );
+
+            payloadLength = pPublishInfo->payloadLength;
         }
         else if( api == FleetProvJsonCreateKeysAndCertRejected )
         {
             LogError( ( "Received rejected response from Fleet Provisioning CreateKeysAndCertificate API." ) );
-            // Note: Not using CSR in this example
+            
+            jsonDump = pPublishInfo->pPayload;
+            LogError( ( "Payload: %s", jsonDump ) );
+            free( ( void * ) jsonDump );
+
+            responseStatus = ResponseRejected;
         }
         else if( api == FleetProvJsonRegisterThingAccepted )
         {
             LogInfo( ( "Received accepted response from Fleet Provisioning RegisterThing API." ) );
 
-            // cborDump = getStringFromCbor( ( const uint8_t * ) pPublishInfo->pPayload, pPublishInfo->payloadLength );
-            // LogDebug( ( "Payload: %s", cborDump ) );
-            // free( ( void * ) cborDump );
+            jsonDump = pPublishInfo->pPayload;
+            LogInfo( ( "Payload: %s", jsonDump ) );
+            free( ( void * ) jsonDump );
 
-            // responseStatus = ResponseAccepted;
+            responseStatus = ResponseAccepted;
 
-            // /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
-            // ( void ) memcpy( ( void * ) payloadBuffer,
-            //                  ( const void * ) pPublishInfo->pPayload,
-            //                  ( size_t ) pPublishInfo->payloadLength );
+            /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
+            ( void ) memcpy( ( void * ) payloadBuffer,
+                             ( const void * ) pPublishInfo->pPayload,
+                             ( size_t ) pPublishInfo->payloadLength );
 
-            // payloadLength = pPublishInfo->payloadLength;
+            payloadLength = pPublishInfo->payloadLength;
         }
         else if( api == FleetProvJsonRegisterThingRejected )
         {
             LogError( ( "Received rejected response from Fleet Provisioning RegisterThing API." ) );
 
-            // cborDump = getStringFromCbor( ( const uint8_t * ) pPublishInfo->pPayload, pPublishInfo->payloadLength );
-            // LogError( ( "Payload: %s", cborDump ) );
-            // free( ( void * ) cborDump );
+            jsonDump = pPublishInfo->pPayload;
+            LogError( ( "Payload: %s", jsonDump ) );
+            free( ( void * ) jsonDump );
 
-            // responseStatus = ResponseRejected;
+            responseStatus = ResponseRejected;
         }
         else
         {
