@@ -100,4 +100,12 @@ int32_t PublishToTopic( const char * pTopicFilter,
                         const char * pPayload,
                         size_t payloadLength );
 
+/**
+ * @brief Invoke the core MQTT library's process loop function.
+ *
+ * @return true if process loop was successful;
+ * false otherwise.
+ */
+bool ProcessLoop( void );
+
 #endif /* ifndef SHADOW_DEMO_HELPERS_H_ */

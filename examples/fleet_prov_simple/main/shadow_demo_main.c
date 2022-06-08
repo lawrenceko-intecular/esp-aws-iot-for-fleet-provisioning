@@ -137,6 +137,38 @@ typedef enum
     ResponseRejected
 } ResponseStatus_t;
 
+/*-----------------------------------------------------------*/
+
+/**
+ * @brief Status reported from the MQTT publish callback.
+ */
+static ResponseStatus_t responseStatus;
+
+/**
+ * @brief Buffer to hold the provisioned AWS IoT Thing name.
+ */
+static char thingName[ MAX_THING_NAME_LENGTH ];
+
+/**
+ * @brief Length of the AWS IoT Thing name.
+ */
+static size_t thingNameLength;
+
+/**
+ * @brief Buffer to hold responses received from the AWS IoT Fleet Provisioning
+ * APIs. When the MQTT publish callback receives an expected Fleet Provisioning
+ * accepted payload, it copies it into this buffer.
+ */
+static uint8_t payloadBuffer[ NETWORK_BUFFER_SIZE ];
+
+/**
+ * @brief Length of the payload stored in #payloadBuffer. This is set by the
+ * MQTT publish callback when it copies a received payload into #payloadBuffer.
+ */
+static size_t payloadLength;
+
+/*-----------------------------------------------------------*/
+
 /**
  * @brief Format string representing a Shadow document with a "desired" state.
  *
@@ -289,6 +321,21 @@ static bool shadowDeleted = false;
 /*-----------------------------------------------------------*/
 
 /**
+ * @brief Run the MQTT process loop to get a response.
+ */
+static int32_t waitForResponse( void );
+
+/**
+ * @brief Subscribe to the CreateKeysAndCertificate accepted and rejected topics.
+ */
+static int32_t subscribeToKeyCertificateResponseTopics( void );
+
+/**
+ * @brief Subscribe to the RegisterThing accepted and rejected topics.
+ */
+static int32_t subscribeToRegisterThingResponseTopics( void );
+
+/**
  * @brief This example uses the MQTT library of the AWS IoT Device SDK for
  * Embedded C. This is the prototype of the callback function defined by
  * that library. It will be invoked whenever the MQTT library receives an
@@ -313,7 +360,7 @@ static void eventCallback( MQTTContext_t * pMqttContext,
  * @param[in] pDeserializedInfo Deserialized information from the incoming packet.
  */
 static void provisioningPublishCallback( MQTTContext_t * pMqttContext,
-                                         MQTTPacketInfo_t * pPacketInfo,
+                                         MQTTPublishInfo_t * pPublishInfo,
                                          MQTTDeserializedInfo_t * pDeserializedInfo );
 
 /**
@@ -719,95 +766,161 @@ static void eventCallback( MQTTContext_t * pMqttContext,
 
 /*-----------------------------------------------------------*/
 
+static int32_t waitForResponse( void )
+{
+    int returnStatus = EXIT_SUCCESS;
+
+    responseStatus = ResponseNotReceived;
+
+    /* responseStatus is updated from the MQTT publish callback. */
+    ( void ) ProcessLoop();
+
+    if( responseStatus == ResponseNotReceived )
+    {
+        LogError( ( "Timed out waiting for response." ) );
+    }
+
+    if( responseStatus == ResponseAccepted )
+    {
+        returnStatus = EXIT_SUCCESS;
+    }
+
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+static int32_t subscribeToKeyCertificateResponseTopics( void )
+{
+    int returnStatus = EXIT_SUCCESS;
+
+    returnStatus = SubscribeToTopic( FP_JSON_CREATE_KEYS_ACCEPTED_TOPIC,
+                                     FP_JSON_CREATE_KEYS_ACCEPTED_LENGTH );
+
+    if( returnStatus != EXIT_SUCCESS )
+    {
+        LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
+                    FP_JSON_CREATE_KEYS_ACCEPTED_LENGTH,
+                    FP_JSON_CREATE_KEYS_ACCEPTED_TOPIC ) );
+    }
+
+    if( returnStatus == EXIT_SUCCESS )
+    {
+        returnStatus = SubscribeToTopic( FP_JSON_CREATE_KEYS_REJECTED_TOPIC,
+                                   FP_JSON_CREATE_KEYS_REJECTED_LENGTH );
+
+        if( returnStatus != EXIT_SUCCESS )
+        {
+            LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
+                        FP_JSON_CREATE_KEYS_REJECTED_LENGTH,
+                        FP_JSON_CREATE_KEYS_REJECTED_TOPIC ) );
+        }
+    }
+
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+static int32_t subscribeToRegisterThingResponseTopics( void )
+{
+    int returnStatus = EXIT_SUCCESS;
+
+    returnStatus = SubscribeToTopic( FP_JSON_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
+                                     FP_JSON_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
+
+    if( returnStatus != EXIT_SUCCESS )
+    {
+        LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
+                    FP_JSON_REGISTER_ACCEPTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                    FP_JSON_REGISTER_ACCEPTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+    }
+
+    if( returnStatus == EXIT_SUCCESS )
+    {
+        returnStatus = SubscribeToTopic( FP_JSON_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ),
+                                   FP_JSON_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ) );
+
+        if( returnStatus != EXIT_SUCCESS )
+        {
+            LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
+                        FP_CBOR_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                        FP_CBOR_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+        }
+    }
+
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
 /* This is the callback function invoked by the MQTT stack when it receives
  * incoming messages. This function demonstrates how to use the Shadow_MatchTopicString
  * function to determine whether the incoming message is a device shadow message
  * or not. If it is, it handles the message depending on the message type.
  */
 static void provisioningPublishCallback( MQTTContext_t * pMqttContext,
-                           MQTTPacketInfo_t * pPacketInfo,
+                           MQTTPublishInfo_t * pPublishInfo,
                            MQTTDeserializedInfo_t * pDeserializedInfo )
 {
     FleetProvisioningStatus_t status;
     FleetProvisioningTopic_t api;
+    const char * jsonDump;
 
-    ShadowMessageType_t messageType = ShadowMessageTypeMaxNum;
-    const char * pThingName = NULL;
-    uint8_t thingNameLength = 0U;
-    const char * pShadowName = NULL;
-    uint8_t shadowNameLength = 0U;
-    uint16_t packetIdentifier;
+    status = FleetProvisioning_MatchTopic( pPublishInfo->pTopicName,
+                                           pPublishInfo->topicNameLength, &api );
 
-    ( void ) pMqttContext;
-
-    assert( pDeserializedInfo != NULL );
-    assert( pMqttContext != NULL );
-    assert( pPacketInfo != NULL );
-
-    packetIdentifier = pDeserializedInfo->packetIdentifier;
-
-    /* Handle incoming publish. The lower 4 bits of the publish packet
-     * type is used for the dup, QoS, and retain flags. Hence masking
-     * out the lower bits to check if the packet is publish. */
-    if( ( pPacketInfo->type & 0xF0U ) == MQTT_PACKET_TYPE_PUBLISH )
+    if( status != FleetProvisioningSuccess )
     {
-        assert( pDeserializedInfo->pPublishInfo != NULL );
-        LogInfo( ( "pPublishInfo->pTopicName:%s.", pDeserializedInfo->pPublishInfo->pTopicName ) );
-
-        /* Let the Device Shadow library tell us whether this is a device shadow message. */
-        if( SHADOW_SUCCESS == Shadow_MatchTopicString( pDeserializedInfo->pPublishInfo->pTopicName,
-                                                       pDeserializedInfo->pPublishInfo->topicNameLength,
-                                                       &messageType,
-                                                       &pThingName,
-                                                       &thingNameLength,
-                                                       &pShadowName,
-                                                       &shadowNameLength ) )
-        {
-            /* Upon successful return, the messageType has been filled in. */
-            if( messageType == ShadowMessageTypeUpdateDelta )
-            {
-                /* Handler function to process payload. */
-                updateDeltaHandler( pDeserializedInfo->pPublishInfo );
-            }
-            else if( messageType == ShadowMessageTypeUpdateAccepted )
-            {
-                /* Handler function to process payload. */
-                updateAcceptedHandler( pDeserializedInfo->pPublishInfo );
-            }
-            else if( messageType == ShadowMessageTypeUpdateDocuments )
-            {
-                LogInfo( ( "/update/documents json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
-            }
-            else if( messageType == ShadowMessageTypeUpdateRejected )
-            {
-                LogInfo( ( "/update/rejected json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
-            }
-            else if( messageType == ShadowMessageTypeDeleteAccepted )
-            {
-                LogInfo( ( "Received an MQTT incoming publish on /delete/accepted topic." ) );
-                shadowDeleted = true;
-                deleteResponseReceived = true;
-            }
-            else if( messageType == ShadowMessageTypeDeleteRejected )
-            {
-                /* Handler function to process payload. */
-                deleteRejectedHandler( pDeserializedInfo->pPublishInfo );
-                deleteResponseReceived = true;
-            }
-            else
-            {
-                LogInfo( ( "Other message type:%d !!", messageType ) );
-            }
-        }
-        else
-        {
-            LogError( ( "Shadow_MatchTopicString parse failed:%s !!", ( const char * ) pDeserializedInfo->pPublishInfo->pTopicName ) );
-            eventCallbackError = true;
-        }
+        LogWarn( ( "Unexpected publish message received. Topic: %.*s.",
+                   ( int ) pPublishInfo->topicNameLength,
+                   ( const char * ) pPublishInfo->pTopicName ) );
     }
     else
     {
-        HandleOtherIncomingPacket( pPacketInfo, packetIdentifier );
+        if( api == FleetProvJsonCreateKeysAndCertAccepted )
+        {
+            LogInfo( ( "Received accepted response from Fleet Provisioning CreateKeysAndCertificate API." ) );
+            // Note: Not using CSR in this example
+        }
+        else if( api == FleetProvJsonCreateKeysAndCertRejected )
+        {
+            LogError( ( "Received rejected response from Fleet Provisioning CreateKeysAndCertificate API." ) );
+            // Note: Not using CSR in this example
+        }
+        else if( api == FleetProvJsonRegisterThingAccepted )
+        {
+            LogInfo( ( "Received accepted response from Fleet Provisioning RegisterThing API." ) );
+
+            // cborDump = getStringFromCbor( ( const uint8_t * ) pPublishInfo->pPayload, pPublishInfo->payloadLength );
+            // LogDebug( ( "Payload: %s", cborDump ) );
+            // free( ( void * ) cborDump );
+
+            // responseStatus = ResponseAccepted;
+
+            // /* Copy the payload from the MQTT library's buffer to #payloadBuffer. */
+            // ( void ) memcpy( ( void * ) payloadBuffer,
+            //                  ( const void * ) pPublishInfo->pPayload,
+            //                  ( size_t ) pPublishInfo->payloadLength );
+
+            // payloadLength = pPublishInfo->payloadLength;
+        }
+        else if( api == FleetProvJsonRegisterThingRejected )
+        {
+            LogError( ( "Received rejected response from Fleet Provisioning RegisterThing API." ) );
+
+            // cborDump = getStringFromCbor( ( const uint8_t * ) pPublishInfo->pPayload, pPublishInfo->payloadLength );
+            // LogError( ( "Payload: %s", cborDump ) );
+            // free( ( void * ) cborDump );
+
+            // responseStatus = ResponseRejected;
+        }
+        else
+        {
+            LogError( ( "Received message on unexpected Fleet Provisioning topic. Topic: %.*s.",
+                        ( int ) pPublishInfo->topicNameLength,
+                        ( const char * ) pPublishInfo->pTopicName ) );
+        }
     }
 }
 
@@ -819,7 +932,7 @@ static void provisioningPublishCallback( MQTTContext_t * pMqttContext,
 int aws_iot_demo_main( int argc,
           char ** argv )
 {
-    bool status = false;
+    int returnStatus = EXIT_SUCCESS;
     /* Buffer for holding received certificate until it is saved. */
     char certificate[ CERT_BUFFER_LENGTH ];
     size_t certificateLength;
@@ -844,13 +957,90 @@ int aws_iot_demo_main( int argc,
 
         // TODO: Initialize the PKCS #11 module
 
+        /**** Connect to AWS IoT Core with provisioning claim credentials *****/
+
         /* Attempts to connect to the AWS IoT MQTT broker. If the
          * connection fails, retries after a timeout. Timeout value will
          * exponentially increase until maximum attempts are reached. */
         LogInfo( ( "Establishing MQTT session with claim certificate..." ) );
-        status = EstablishMqttSession( provisioningPublishCallback );
+        returnStatus = EstablishMqttSession( provisioningPublishCallback );
 
-        if( status == EXIT_FAILURE )
+        if( returnStatus != EXIT_SUCCESS )
+        {
+            LogError( ( "Failed to establish MQTT session." ) );
+        }
+        else
+        {
+            LogInfo( ( "Established connection with claim credentials." ) );
+            connectionEstablished = true;
+        }
+
+        /**** Call the CreateKeysAndCertificate API ***************************/
+
+        /* We use the CreateKeysAndCertificate API to obtain a client certificate. */
+        if( returnStatus == EXIT_SUCCESS )
+        {
+            /* Subscribe to the CreateKeysAndCertificate accepted and rejected
+             * topics. In this demo we use JSON encoding for the payloads,
+             * so we use the JSON variants of the topics. */
+            returnStatus = subscribeToKeyCertificateResponseTopics();
+        }
+
+        if ( returnStatus == EXIT_SUCCESS )
+        {
+            /* Subscribe to the RegisterThing response topics. */
+            returnStatus = subscribeToRegisterThingResponseTopics();
+        }
+        
+
+        // Note: Skipped create a new key and CSR.
+
+        // Note: Skipped generateCsrRequest()
+
+        if ( returnStatus == EXIT_SUCCESS )
+        {
+            /* Publish to the CreateKeysAndCertificate API. */
+            returnStatus = PublishToTopic( FP_JSON_CREATE_KEYS_PUBLISH_TOPIC,
+                            FP_JSON_CREATE_KEYS_PUBLISH_LENGTH,
+                            ( char * ) payloadBuffer,
+                            payloadLength );
+
+            if( returnStatus == EXIT_FAILURE )
+            {
+                LogError( ( "Failed to publish to fleet provisioning topic: %.*s.",
+                            FP_JSON_CREATE_KEYS_PUBLISH_LENGTH,
+                            FP_JSON_CREATE_KEYS_PUBLISH_TOPIC ) );
+            }
+        }
+
+        if ( returnStatus == EXIT_SUCCESS )
+        {
+            /* Get the response to the CreateKeysAndCertificate request. */
+            returnStatus = waitForResponse();
+        }
+        
+        // if( status == true )
+        // {
+        //     /* From the response, extract the certificate, certificate ID, and
+        //      * certificate ownership token. */
+        //     status = parseKeyCertResponse( payloadBuffer,
+        //                                 payloadLength,
+        //                                 certificate,
+        //                                 &certificateLength,
+        //                                 certificateId,
+        //                                 &certificateIdLength,
+        //                                 ownershipToken,
+        //                                 &ownershipTokenLength );
+
+        //     if( status == true )
+        //     {
+        //         LogInfo( ( "Received certificate with Id: %.*s", ( int ) certificateIdLength, certificateId ) );
+        //     }
+        // }
+        
+        
+
+        if( returnStatus == EXIT_FAILURE )
         {
             /* Log error to indicate connection failure. */
             LogError( ( "Failed to connect to MQTT broker." ) );
@@ -860,7 +1050,7 @@ int aws_iot_demo_main( int argc,
             
 
             /* The MQTT session is always disconnected, even there were prior failures. */
-            status = DisconnectMqttSession();
+            returnStatus = DisconnectMqttSession();
         }
 
         /* This demo performs only Device Shadow operations. If matching the Shadow
@@ -868,19 +1058,19 @@ int aws_iot_demo_main( int argc,
          * then this demo was not successful. */
         if( eventCallbackError == true )
         {
-            status = EXIT_FAILURE;
+            returnStatus = EXIT_FAILURE;
         }
 
         
-    } while( status != EXIT_SUCCESS );
+    } while( returnStatus != EXIT_SUCCESS );
 
-    if( status == EXIT_SUCCESS )
+    if( returnStatus == EXIT_SUCCESS )
     {
         /* Log message indicating the demo completed successfully. */
         LogInfo( ( "Demo completed successfully." ) );
     }
 
-    return status;
+    return returnStatus;
 }
 
 /*-----------------------------------------------------------*/

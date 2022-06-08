@@ -762,8 +762,8 @@ int32_t SubscribeToTopic( const char * pTopicFilter,
 
     if( mqttStatus != MQTTSuccess )
     {
-        LogError( ( "Failed to send SUBSCRIBE packet to broker with error = %u.",
-                    mqttStatus ) );
+        LogError( ( "Failed to send SUBSCRIBE packet to broker with error = %s.",
+                    MQTT_Status_strerror( mqttStatus ) ) );
         returnStatus = EXIT_FAILURE;
     }
     else
@@ -784,8 +784,8 @@ int32_t SubscribeToTopic( const char * pTopicFilter,
         if( mqttStatus != MQTTSuccess )
         {
             returnStatus = EXIT_FAILURE;
-            LogError( ( "MQTT_ProcessLoop returned with status = %u.",
-                        mqttStatus ) );
+            LogError( ( "MQTT_ProcessLoop returned with status = %s.",
+                        MQTT_Status_strerror( mqttStatus ) ) );
         }
     }
 
@@ -913,20 +913,42 @@ int32_t PublishToTopic( const char * pTopicFilter,
                        pTopicFilter,
                        outgoingPublishPackets[ publishIndex ].packetId ) );
 
-            /* Calling MQTT_ProcessLoop to process incoming publish echo, since
-             * application subscribed to the same topic the broker will send
-             * publish message back to the application. This function also
-             * sends ping request to broker if MQTT_KEEP_ALIVE_INTERVAL_SECONDS
-             * has expired since the last MQTT packet sent and receive
-             * ping responses. */
-            mqttStatus = MQTT_ProcessLoop( &mqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
+            // /* Calling MQTT_ProcessLoop to process incoming publish echo, since
+            //  * application subscribed to the same topic the broker will send
+            //  * publish message back to the application. This function also
+            //  * sends ping request to broker if MQTT_KEEP_ALIVE_INTERVAL_SECONDS
+            //  * has expired since the last MQTT packet sent and receive
+            //  * ping responses. */
+            // mqttStatus = MQTT_ProcessLoop( &mqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
 
-            if( mqttStatus != MQTTSuccess )
-            {
-                LogWarn( ( "MQTT_ProcessLoop returned with status = %u.",
-                           mqttStatus ) );
-            }
+            // if( mqttStatus != MQTTSuccess )
+            // {
+            //     LogWarn( ( "MQTT_ProcessLoop returned with status = %u.",
+            //                mqttStatus ) );
+            // }
         }
+    }
+
+    return returnStatus;
+}
+/*-----------------------------------------------------------*/
+
+bool ProcessLoop( void )
+{
+    bool returnStatus = false;
+    MQTTStatus_t mqttStatus = MQTTSuccess;
+
+    mqttStatus = MQTT_ProcessLoop( &mqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
+
+    if( mqttStatus != MQTTSuccess )
+    {
+        LogError( ( "MQTT_ProcessLoop returned with status = %s.",
+                    MQTT_Status_strerror( mqttStatus ) ) );
+    }
+    else
+    {
+        LogDebug( ( "MQTT_ProcessLoop successful." ) );
+        returnStatus = true;
     }
 
     return returnStatus;

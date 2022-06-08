@@ -38,7 +38,7 @@
 
 /* Logging configuration for the Demo. */
 #ifndef LIBRARY_LOG_NAME
-    #define LIBRARY_LOG_NAME     "SHADOW_DEMO"
+    #define LIBRARY_LOG_NAME     "FLEET_PROVISIONING_DEMO"
 #endif
 #ifndef LIBRARY_LOG_LEVEL
     #define LIBRARY_LOG_LEVEL    LOG_INFO
@@ -71,6 +71,35 @@
 #ifndef AWS_MQTT_PORT
     #define AWS_MQTT_PORT    ( CONFIG_MQTT_BROKER_PORT )
 #endif
+
+/**
+ * @brief Name of the provisioning template to use for the RegisterThing
+ * portion of the Fleet Provisioning workflow.
+ *
+ * For information about provisioning templates, see the following AWS documentation:
+ * https://docs.aws.amazon.com/iot/latest/developerguide/provision-template.html#fleet-provision-template
+ *
+ * The example template used for this demo is available in the
+ * example_demo_template.json file in the demo directory. In the example,
+ * replace <provisioned-thing-policy> with the policy provisioned devices
+ * should have.  The demo template uses Fn::Join to construct the Thing name by
+ * concatenating fp_demo_ and the serial number sent by the demo.
+ *
+ * @note The provisioning template MUST be created in AWS IoT before running the
+ * demo.
+ *
+ */
+#define PROVISIONING_TEMPLATE_NAME    "IVO1-FleetProvisioning"
+
+/**
+ * @brief Serial number to send in the request to the Fleet Provisioning
+ * RegisterThing API.
+ *
+ * This is sent as a parameter to the provisioning template, which uses it to
+ * generate a unique Thing name. This should be unique per device.
+ *
+ */
+#define DEVICE_SERIAL_NUMBER    "29B4"
 
 /**
  * @brief MQTT client identifier.
