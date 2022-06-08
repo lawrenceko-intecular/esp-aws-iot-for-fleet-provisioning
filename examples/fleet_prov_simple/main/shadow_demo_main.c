@@ -707,7 +707,8 @@ static void eventCallback( MQTTContext_t * pMqttContext,
     {
         assert( pDeserializedInfo->pPublishInfo != NULL );
         LogInfo( ( "pPublishInfo->pTopicName:%s.", pDeserializedInfo->pPublishInfo->pTopicName ) );
-
+        LogInfo( ( "/update/rejected json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
+        
         /* Let the Device Shadow library tell us whether this is a device shadow message. */
         if( SHADOW_SUCCESS == Shadow_MatchTopicString( pDeserializedInfo->pPublishInfo->pTopicName,
                                                        pDeserializedInfo->pPublishInfo->topicNameLength,
@@ -864,15 +865,25 @@ static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
                                             MQTTPublishInfo_t * pPublishInfo,
                                             MQTTDeserializedInfo_t * pDeserializedInfo )
 {
+    uint16_t packetIdentifier;
+
     FleetProvisioningStatus_t status;
     FleetProvisioningTopic_t api;
     const char * jsonDump;
+
+    ( void ) pMqttContext;
+
+    assert( pDeserializedInfo != NULL );
+    assert( pMqttContext != NULL );
+    assert( pPublishInfo != NULL );
+
+    packetIdentifier = pDeserializedInfo->packetIdentifier;
 
     status = FleetProvisioning_MatchTopic( pPublishInfo->pTopicName,
                                            pPublishInfo->topicNameLength, &api );
 
     // LogInfo( ( "pPublishInfo->pTopicName:%s.", pDeserializedInfo->pPublishInfo->pTopicName ) );
-    // LogInfo( ( "json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
+    // LogInfo( ( "json payload:%s.", pDeserializedInfo->pPublishInfo->pPayload ) );
 
     if ( status == FleetProvisioningError )
     {
@@ -1006,7 +1017,7 @@ int aws_iot_demo_main( int argc,
          * connection fails, retries after a timeout. Timeout value will
          * exponentially increase until maximum attempts are reached. */
         LogInfo( ( "Establishing MQTT session with claim certificate..." ) );
-        returnStatus = EstablishMqttSession( provisioningPublishCallback );
+        returnStatus = EstablishMqttSession( eventCallback );
 
         if( returnStatus != EXIT_SUCCESS )
         {
