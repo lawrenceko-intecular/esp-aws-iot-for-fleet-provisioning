@@ -66,8 +66,9 @@
 /* Clock for timer. */
 #include "clock.h"
 
-/* shadow demo helpers header. */
+/* Demo includes. */
 #include "shadow_demo_helpers.h"
+#include "fleet_provisioning_serializer.h"
 
 /* AWS IoT Fleet Provisioning Library. */
 #include "fleet_provisioning.h"
@@ -859,9 +860,9 @@ static int32_t subscribeToRegisterThingResponseTopics( void )
  * function to determine whether the incoming message is a device shadow message
  * or not. If it is, it handles the message depending on the message type.
  */
-static void provisioningPublishCallback( MQTTContext_t * pMqttContext,
-                           MQTTPublishInfo_t * pPublishInfo,
-                           MQTTDeserializedInfo_t * pDeserializedInfo )
+static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
+                                            MQTTPublishInfo_t * pPublishInfo,
+                                            MQTTDeserializedInfo_t * pDeserializedInfo )
 {
     FleetProvisioningStatus_t status;
     FleetProvisioningTopic_t api;
@@ -870,11 +871,36 @@ static void provisioningPublishCallback( MQTTContext_t * pMqttContext,
     status = FleetProvisioning_MatchTopic( pPublishInfo->pTopicName,
                                            pPublishInfo->topicNameLength, &api );
 
+    // LogInfo( ( "pPublishInfo->pTopicName:%s.", pDeserializedInfo->pPublishInfo->pTopicName ) );
+    // LogInfo( ( "json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
+
+    if ( status == FleetProvisioningError )
+    {
+        LogError( ( "FleetProvisioningError" ) );
+    }
+    else if ( status == FleetProvisioningSuccess )
+    {
+        LogInfo( ( "FleetProvisioningSuccess" ) );
+    }
+    else if ( status == FleetProvisioningNoMatch )
+    {
+        LogError( ( "FleetProvisioningNoMatch" ) );
+    }
+    else if ( status == FleetProvisioningBadParameter )
+    {
+        LogError( ( "FleetProvisioningBadParameter" ) );
+    }
+    else if ( status == FleetProvisioningBufferTooSmall )
+    {
+        LogError( ( "FleetProvisioningBufferTooSmall" ) );
+    }
+
     if( status != FleetProvisioningSuccess )
     {
-        LogWarn( ( "Unexpected publish message received. Topic: %.*s.",
-                   ( int ) pPublishInfo->topicNameLength,
-                   ( const char * ) pPublishInfo->pTopicName ) );
+        // NOTE: Cause LoadProhibited error
+        // LogWarn( ( "Unexpected publish message received. Topic: %.*s.",
+        //            ( int ) pPublishInfo->topicNameLength,
+        //            ( const char * ) pPublishInfo->pTopicName ) );
     }
     else
     {
@@ -1010,9 +1036,9 @@ int aws_iot_demo_main( int argc,
         }
         
 
-        // Note: Skipped create a new key and CSR.
+        // // Note: Skipped create a new key and CSR.
 
-        // Note: Skipped generateCsrRequest()
+        // // Note: Skipped generateCsrRequest()
 
         if ( returnStatus == EXIT_SUCCESS )
         {
@@ -1030,26 +1056,27 @@ int aws_iot_demo_main( int argc,
             }
         }
 
-        if ( returnStatus == EXIT_SUCCESS )
-        {
-            /* Get the response to the CreateKeysAndCertificate request. */
-            returnStatus = waitForResponse();
-        }
+        // if ( returnStatus == EXIT_SUCCESS )
+        // {
+        //     /* Get the response to the CreateKeysAndCertificate request. */
+        //     returnStatus = waitForResponse();
+        // }
         
-        // if( status == true )
+        // if( returnStatus == EXIT_SUCCESS )
         // {
         //     /* From the response, extract the certificate, certificate ID, and
         //      * certificate ownership token. */
-        //     status = parseKeyCertResponse( payloadBuffer,
-        //                                 payloadLength,
-        //                                 certificate,
-        //                                 &certificateLength,
-        //                                 certificateId,
-        //                                 &certificateIdLength,
-        //                                 ownershipToken,
-        //                                 &ownershipTokenLength );
+        //     LogInfo( ( "Parsing recieved data" ) );
+        //     returnStatus = parseKeyCertResponse(    payloadBuffer,
+        //                                             payloadLength,
+        //                                             certificate,
+        //                                             &certificateLength,
+        //                                             certificateId,
+        //                                             &certificateIdLength,
+        //                                             ownershipToken,
+        //                                             &ownershipTokenLength );
 
-        //     if( status == true )
+        //     if( returnStatus == EXIT_SUCCESS )
         //     {
         //         LogInfo( ( "Received certificate with Id: %.*s", ( int ) certificateIdLength, certificateId ) );
         //     }

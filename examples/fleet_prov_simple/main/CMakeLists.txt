@@ -2,6 +2,7 @@ set(COMPONENT_SRCS
 	"app_main.c"
 	"shadow_demo_main.c"
 	"shadow_demo_helpers.c"
+	"fleet_provisioning_serializer.c"
 	)
 
 set(COMPONENT_ADD_INCLUDEDIRS
