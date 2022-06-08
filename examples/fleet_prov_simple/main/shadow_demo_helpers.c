@@ -919,13 +919,13 @@ int32_t PublishToTopic( const char * pTopicFilter,
             //  * sends ping request to broker if MQTT_KEEP_ALIVE_INTERVAL_SECONDS
             //  * has expired since the last MQTT packet sent and receive
             //  * ping responses. */
-            // mqttStatus = MQTT_ProcessLoop( &mqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
+            mqttStatus = MQTT_ProcessLoop( &mqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
 
-            // if( mqttStatus != MQTTSuccess )
-            // {
-            //     LogWarn( ( "MQTT_ProcessLoop returned with status = %u.",
-            //                mqttStatus ) );
-            // }
+            if( mqttStatus != MQTTSuccess )
+            {
+                LogWarn( ( "MQTT_ProcessLoop returned with status = %u.",
+                           mqttStatus ) );
+            }
         }
     }
 

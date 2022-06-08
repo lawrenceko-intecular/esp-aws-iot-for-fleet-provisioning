@@ -844,8 +844,8 @@ static int32_t subscribeToRegisterThingResponseTopics( void )
         if( returnStatus != EXIT_SUCCESS )
         {
             LogError( ( "Failed to subscribe to fleet provisioning topic: %.*s.",
-                        FP_CBOR_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
-                        FP_CBOR_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
+                        FP_JSON_REGISTER_REJECTED_LENGTH( PROVISIONING_TEMPLATE_NAME_LENGTH ),
+                        FP_JSON_REGISTER_REJECTED_TOPIC( PROVISIONING_TEMPLATE_NAME ) ) );
         }
     }
 
