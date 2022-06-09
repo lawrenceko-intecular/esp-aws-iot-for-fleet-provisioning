@@ -1179,12 +1179,12 @@ int32_t PublishToTopic( const char * pTopicFilter,
                        pTopicFilter,
                        outgoingPublishPackets[ publishIndex ].packetId ) );
 
-            // /* Calling MQTT_ProcessLoop to process incoming publish echo, since
-            //  * application subscribed to the same topic the broker will send
-            //  * publish message back to the application. This function also
-            //  * sends ping request to broker if MQTT_KEEP_ALIVE_INTERVAL_SECONDS
-            //  * has expired since the last MQTT packet sent and receive
-            //  * ping responses. */
+            /* Calling MQTT_ProcessLoop to process incoming publish echo, since
+             * application subscribed to the same topic the broker will send
+             * publish message back to the application. This function also
+             * sends ping request to broker if MQTT_KEEP_ALIVE_INTERVAL_SECONDS
+             * has expired since the last MQTT packet sent and receive
+             * ping responses. */
             mqttStatus = MQTT_ProcessLoop( &mqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
 
             if( mqttStatus != MQTTSuccess )

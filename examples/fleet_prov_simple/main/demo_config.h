@@ -159,7 +159,7 @@
  *
  * This is the example predefine thing name and could be compiled in ROM code.
  */
-#define THING_NAME           CONFIG_MQTT_CLIENT_IDENTIFIER
+#define THING_NAME           "IVO1_29B5"
 
 /**
  * @brief The length of #THING_NAME.
