@@ -1,7 +1,6 @@
 set(COMPONENT_SRCS 
 	"app_main.c"
-	"ota_demo_core_mqtt.c"
-	"mqtt_subscription_manager.c"
+	"fleet_prov_by_claim_demo.c"
 	)
 
 set(COMPONENT_ADD_INCLUDEDIRS
