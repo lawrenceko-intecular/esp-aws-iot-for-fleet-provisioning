@@ -38,7 +38,7 @@
 
 /* Logging configuration for the Demo. */
 #ifndef LIBRARY_LOG_NAME
-    #define LIBRARY_LOG_NAME     "OTA_MQTT_DEMO"
+    #define LIBRARY_LOG_NAME     "FLEET_PROVISIONING_DEMO"
 #endif
 #ifndef LIBRARY_LOG_LEVEL
     #define LIBRARY_LOG_LEVEL    LOG_INFO
@@ -48,6 +48,7 @@
 
 /************ End of logging configuration ****************/
 
+
 /**
  * @brief Details of the MQTT broker to connect to.
  *
@@ -55,7 +56,9 @@
  * Settings/Custom Endpoint, or using the describe-endpoint API.
  *
  */
-#define AWS_IOT_ENDPOINT  CONFIG_MQTT_BROKER_ENDPOINT             
+#ifndef AWS_IOT_ENDPOINT
+    #define AWS_IOT_ENDPOINT    CONFIG_MQTT_BROKER_ENDPOINT
+#endif
 
 /**
  * @brief AWS IoT MQTT broker port number.
@@ -65,7 +68,49 @@
  * @note Port 443 requires use of the ALPN TLS extension with the ALPN protocol
  * name. When using port 8883, ALPN is not required.
  */
-#define AWS_MQTT_PORT    ( CONFIG_MQTT_BROKER_PORT )
+#ifndef AWS_MQTT_PORT
+    #define AWS_MQTT_PORT    ( CONFIG_MQTT_BROKER_PORT )
+#endif
+
+/**
+ * @brief Name of the provisioning template to use for the RegisterThing
+ * portion of the Fleet Provisioning workflow.
+ *
+ * For information about provisioning templates, see the following AWS documentation:
+ * https://docs.aws.amazon.com/iot/latest/developerguide/provision-template.html#fleet-provision-template
+ *
+ * The example template used for this demo is available in the
+ * example_demo_template.json file in the demo directory. In the example,
+ * replace <provisioned-thing-policy> with the policy provisioned devices
+ * should have.  The demo template uses Fn::Join to construct the Thing name by
+ * concatenating fp_demo_ and the serial number sent by the demo.
+ *
+ * @note The provisioning template MUST be created in AWS IoT before running the
+ * demo.
+ *
+ */
+#define PROVISIONING_TEMPLATE_NAME    "IVO1-FleetProvisioning"
+
+/**
+ * @brief Serial number to send in the request to the Fleet Provisioning
+ * RegisterThing API.
+ *
+ * This is sent as a parameter to the provisioning template, which uses it to
+ * generate a unique Thing name. This should be unique per device.
+ *
+ */
+#define DEVICE_SERIAL_NUMBER    "29B4"
+
+/**
+ * @brief Subject name to use when creating the certificate signing request (CSR)
+ * for provisioning the demo client with using the Fleet Provisioning
+ * CreateCertificateFromCsr APIs.
+ *
+ * This is passed to MbedTLS; see https://tls.mbed.org/api/x509__csr_8h.html#a954eae166b125cea2115b7db8c896e90
+ */
+#ifndef CSR_SUBJECT_NAME
+    #define CSR_SUBJECT_NAME    "CN=Fleet Provisioning Demo"
+#endif
 
 /**
  * @brief MQTT client identifier.
@@ -77,12 +122,9 @@
 #endif
 
 /**
- * @brief Configure application version.
+ * @brief Size of the network buffer for MQTT packets.
  */
-
-#define APP_VERSION_MAJOR         0
-#define APP_VERSION_MINOR         9
-#define APP_VERSION_BUILD         2
+#define NETWORK_BUFFER_SIZE       ( 4096 )
 
 /**
  * @brief The name of the operating system that the application is running on.
@@ -106,9 +148,36 @@
 #define HARDWARE_PLATFORM_NAME    CONFIG_HARDWARE_PLATFORM_NAME
 
 /**
- * @brief The name of the library used and its version, following an "@"
+ * @brief The name of the MQTT library used and its version, following an "@"
  * symbol.
  */
-#define OTA_LIB                   "otalib@1.0.0"
+#include "core_mqtt.h"
+#define MQTT_LIB    "core-mqtt@" MQTT_LIBRARY_VERSION
 
-#endif /* ifndef DEMO_CONFIG_H */
+/**
+ * @brief Predefined thing name.
+ *
+ * This is the example predefine thing name and could be compiled in ROM code.
+ */
+#define THING_NAME           CONFIG_MQTT_CLIENT_IDENTIFIER
+
+/**
+ * @brief The length of #THING_NAME.
+ */
+#define THING_NAME_LENGTH    ( ( uint16_t ) ( sizeof( THING_NAME ) - 1 ) )
+
+/**
+ * @brief Predefined shadow name.
+ *
+ * Defaults to unnamed "Classic" shadow. Change to a custom string to use a named shadow.
+ */
+#ifndef SHADOW_NAME
+    #define SHADOW_NAME    SHADOW_NAME_CLASSIC
+#endif
+
+/**
+ * @brief The length of #SHADOW_NAME.
+ */
+#define SHADOW_NAME_LENGTH    ( ( uint16_t ) ( sizeof( SHADOW_NAME ) - 1 ) )
+
+#endif /* ifndef DEMO_CONFIG_H_ */
