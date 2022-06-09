@@ -99,7 +99,18 @@
  * generate a unique Thing name. This should be unique per device.
  *
  */
-#define DEVICE_SERIAL_NUMBER    "29B4"
+#define DEVICE_SERIAL_NUMBER    "29B5"
+
+/**
+ * @brief Subject name to use when creating the certificate signing request (CSR)
+ * for provisioning the demo client with using the Fleet Provisioning
+ * CreateCertificateFromCsr APIs.
+ *
+ * This is passed to MbedTLS; see https://tls.mbed.org/api/x509__csr_8h.html#a954eae166b125cea2115b7db8c896e90
+ */
+#ifndef CSR_SUBJECT_NAME
+    #define CSR_SUBJECT_NAME    "CN=Fleet Provisioning Demo"
+#endif
 
 /**
  * @brief MQTT client identifier.

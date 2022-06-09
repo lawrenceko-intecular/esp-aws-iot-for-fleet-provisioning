@@ -4,15 +4,13 @@ cmake_minimum_required(VERSION 3.5)
 
 set(EXTRA_COMPONENT_DIRS "$ENV{IDF_PATH}/examples/common_components/protocol_examples_common"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/coreMQTT"
-						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/Device-Shadow-for-AWS-IoT-embedded-sdk"
-						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/coreJSON"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/backoffAlgorithm"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/common/posix_compat"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/Fleet-Provisioning-for-AWS-IoT-embedded-sdk"
    )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(thing_shadow)
+project(fleet_prov_simple)
 
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/root_cert_auth.pem" TEXT)
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/client.crt" TEXT)

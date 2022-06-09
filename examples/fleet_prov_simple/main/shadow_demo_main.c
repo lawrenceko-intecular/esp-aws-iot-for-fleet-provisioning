@@ -54,15 +54,6 @@
 /* POSIX includes. */
 #include <unistd.h>
 
-/* Shadow config include. */
-#include "shadow_config.h"
-
-/* SHADOW API header. */
-#include "shadow.h"
-
-/* JSON API header. */
-#include "core_json.h"
-
 /* Clock for timer. */
 #include "clock.h"
 
@@ -351,425 +342,10 @@ static int32_t subscribeToRegisterThingResponseTopics( void );
  * @param[in] pPacketInfo Packet Info pointer for the incoming packet.
  * @param[in] pDeserializedInfo Deserialized information from the incoming packet.
  */
-static void eventCallback( MQTTContext_t * pMqttContext,
-                           MQTTPacketInfo_t * pPacketInfo,
-                           MQTTDeserializedInfo_t * pDeserializedInfo );
-
-/**
- * @brief This example uses the MQTT library of the AWS IoT Device SDK for
- * Embedded C. This is the prototype of the callback function defined by
- * that library. It will be invoked whenever the MQTT library receives an
- * incoming message.
- *
- * @param[in] pMqttContext MQTT context pointer.
- * @param[in] pPacketInfo Packet Info pointer for the incoming packet.
- * @param[in] pDeserializedInfo Deserialized information from the incoming packet.
- */
 static void provisioningPublishCallback(    MQTTContext_t * pMqttContext,
                                             MQTTPacketInfo_t * pPacketInfo,
                                             MQTTDeserializedInfo_t * pDeserializedInfo );
 
-/**
- * @brief Process payload from /update/delta topic.
- *
- * This handler examines the version number and the powerOn state. If powerOn
- * state has changed, it sets a flag for the main function to take further actions.
- *
- * @param[in] pPublishInfo Deserialized publish info pointer for the incoming
- * packet.
- */
-static void updateDeltaHandler( MQTTPublishInfo_t * pPublishInfo );
-
-/**
- * @brief Process payload from /update/accepted topic.
- *
- * This handler examines the accepted message that carries the same clientToken
- * as sent before.
- *
- * @param[in] pPublishInfo Deserialized publish info pointer for the incoming
- * packet.
- */
-static void updateAcceptedHandler( MQTTPublishInfo_t * pPublishInfo );
-
-/**
- * @brief Process payload from `/delete/rejected` topic.
- *
- * This handler examines the rejected message to look for the reject reason code.
- * If the reject reason code is `404`, an attempt was made to delete a shadow
- * document which was not present yet. This is considered to be success for this
- * demo application.
- *
- * @param[in] pPublishInfo Deserialized publish info pointer for the incoming
- * packet.
- */
-static void deleteRejectedHandler( MQTTPublishInfo_t * pPublishInfo );
-
-/*-----------------------------------------------------------*/
-
-static void deleteRejectedHandler( MQTTPublishInfo_t * pPublishInfo )
-{
-    JSONStatus_t result = JSONSuccess;
-    char * pOutValue = NULL;
-    uint32_t outValueLength = 0U;
-    long errorCode = 0L;
-
-    assert( pPublishInfo != NULL );
-    assert( pPublishInfo->pPayload != NULL );
-
-    LogInfo( ( "/delete/rejected json payload:%s.", ( const char * ) pPublishInfo->pPayload ) );
-
-    /* The payload will look similar to this:
-     * {
-     *    "code": error-code,
-     *    "message": "error-message",
-     *    "timestamp": timestamp,
-     *    "clientToken": "token"
-     * }
-     */
-
-    /* Make sure the payload is a valid json document. */
-    result = JSON_Validate( ( const char * ) pPublishInfo->pPayload,
-                            pPublishInfo->payloadLength );
-
-    if( result == JSONSuccess )
-    {
-        /* Then we start to get the version value by JSON keyword "version". */
-        result = JSON_Search( ( char * ) pPublishInfo->pPayload,
-                              pPublishInfo->payloadLength,
-                              SHADOW_DELETE_REJECTED_ERROR_CODE_KEY,
-                              SHADOW_DELETE_REJECTED_ERROR_CODE_KEY_LENGTH,
-                              &pOutValue,
-                              ( size_t * ) &outValueLength );
-    }
-    else
-    {
-        LogError( ( "The json document is invalid!!" ) );
-    }
-
-    if( result == JSONSuccess )
-    {
-        LogInfo( ( "Error code is: %.*s.",
-                   outValueLength,
-                   pOutValue ) );
-
-        /* Convert the extracted value to an unsigned integer value. */
-        errorCode = strtoul( pOutValue, NULL, 10 );
-    }
-    else
-    {
-        LogError( ( "No error code in json document!!" ) );
-    }
-
-    LogInfo( ( "Error code:%ld.", errorCode ) );
-
-    /* Mark Shadow delete operation as a success if error code is 404. */
-    if( errorCode == 404UL )
-    {
-        shadowDeleted = true;
-    }
-}
-
-/*-----------------------------------------------------------*/
-
-static void updateDeltaHandler( MQTTPublishInfo_t * pPublishInfo )
-{
-    static uint32_t currentVersion = 0; /* Remember the latestVersion # we've ever received */
-    uint32_t version = 0U;
-    uint32_t newState = 0U;
-    char * outValue = NULL;
-    uint32_t outValueLength = 0U;
-    JSONStatus_t result = JSONSuccess;
-
-    assert( pPublishInfo != NULL );
-    assert( pPublishInfo->pPayload != NULL );
-
-    LogInfo( ( "/update/delta json payload:%s.", ( const char * ) pPublishInfo->pPayload ) );
-
-    /* The payload will look similar to this:
-     * {
-     *      "version": 12,
-     *      "timestamp": 1595437367,
-     *      "state": {
-     *          "powerOn": 1
-     *      },
-     *      "metadata": {
-     *          "powerOn": {
-     *          "timestamp": 1595437367
-     *          }
-     *      },
-     *      "clientToken": "388062"
-     *  }
-     */
-
-    /* Make sure the payload is a valid json document. */
-    result = JSON_Validate( ( const char * ) pPublishInfo->pPayload,
-                            pPublishInfo->payloadLength );
-
-    if( result == JSONSuccess )
-    {
-        /* Then we start to get the version value by JSON keyword "version". */
-        result = JSON_Search( ( char * ) pPublishInfo->pPayload,
-                              pPublishInfo->payloadLength,
-                              "version",
-                              sizeof( "version" ) - 1,
-                              &outValue,
-                              ( size_t * ) &outValueLength );
-    }
-    else
-    {
-        LogError( ( "The json document is invalid!!" ) );
-        eventCallbackError = true;
-    }
-
-    if( result == JSONSuccess )
-    {
-        LogInfo( ( "version: %.*s",
-                   outValueLength,
-                   outValue ) );
-
-        /* Convert the extracted value to an unsigned integer value. */
-        version = ( uint32_t ) strtoul( outValue, NULL, 10 );
-    }
-    else
-    {
-        LogError( ( "No version in json document!!" ) );
-        eventCallbackError = true;
-    }
-
-    LogInfo( ( "version:%d, currentVersion:%d \r\n", version, currentVersion ) );
-
-    /* When the version is much newer than the on we retained, that means the powerOn
-     * state is valid for us. */
-    if( version > currentVersion )
-    {
-        /* Set to received version as the current version. */
-        currentVersion = version;
-
-        /* Get powerOn state from json documents. */
-        result = JSON_Search( ( char * ) pPublishInfo->pPayload,
-                              pPublishInfo->payloadLength,
-                              "state.powerOn",
-                              sizeof( "state.powerOn" ) - 1,
-                              &outValue,
-                              ( size_t * ) &outValueLength );
-    }
-    else
-    {
-        /* In this demo, we discard the incoming message
-         * if the version number is not newer than the latest
-         * that we've received before. Your application may use a
-         * different approach.
-         */
-        LogWarn( ( "The received version is smaller than current one!!" ) );
-    }
-
-    if( result == JSONSuccess )
-    {
-        /* Convert the powerOn state value to an unsigned integer value. */
-        newState = ( uint32_t ) strtoul( outValue, NULL, 10 );
-
-        LogInfo( ( "The new power on state newState:%d, currentPowerOnState:%d \r\n",
-                   newState, currentPowerOnState ) );
-
-        if( newState != currentPowerOnState )
-        {
-            /* The received powerOn state is different from the one we retained before, so we switch them
-             * and set the flag. */
-            currentPowerOnState = newState;
-
-            /* State change will be handled in main(), where we will publish a "reported"
-             * state to the device shadow. We do not do it here because we are inside of
-             * a callback from the MQTT library, so that we don't re-enter
-             * the MQTT library. */
-            stateChanged = true;
-        }
-    }
-    else
-    {
-        LogError( ( "No powerOn in json document!!" ) );
-        eventCallbackError = true;
-    }
-}
-
-/*-----------------------------------------------------------*/
-
-static void updateAcceptedHandler( MQTTPublishInfo_t * pPublishInfo )
-{
-    char * outValue = NULL;
-    uint32_t outValueLength = 0U;
-    uint32_t receivedToken = 0U;
-    JSONStatus_t result = JSONSuccess;
-
-    assert( pPublishInfo != NULL );
-    assert( pPublishInfo->pPayload != NULL );
-
-    LogInfo( ( "/update/accepted json payload:%s.", ( const char * ) pPublishInfo->pPayload ) );
-
-    /* Handle the reported state with state change in /update/accepted topic.
-     * Thus we will retrieve the client token from the json document to see if
-     * it's the same one we sent with reported state on the /update topic.
-     * The payload will look similar to this:
-     *  {
-     *      "state": {
-     *          "reported": {
-     *          "powerOn": 1
-     *          }
-     *      },
-     *      "metadata": {
-     *          "reported": {
-     *          "powerOn": {
-     *              "timestamp": 1596573647
-     *          }
-     *          }
-     *      },
-     *      "version": 14698,
-     *      "timestamp": 1596573647,
-     *      "clientToken": "022485"
-     *  }
-     */
-
-    /* Make sure the payload is a valid json document. */
-    result = JSON_Validate( ( const char * ) pPublishInfo->pPayload,
-                            pPublishInfo->payloadLength );
-
-    if( result == JSONSuccess )
-    {
-        /* Get clientToken from json documents. */
-        result = JSON_Search( ( char * ) pPublishInfo->pPayload,
-                              pPublishInfo->payloadLength,
-                              "clientToken",
-                              sizeof( "clientToken" ) - 1,
-                              &outValue,
-                              ( size_t * ) &outValueLength );
-    }
-    else
-    {
-        LogError( ( "Invalid json documents !!" ) );
-        eventCallbackError = true;
-    }
-
-    if( result == JSONSuccess )
-    {
-        LogInfo( ( "clientToken: %.*s", outValueLength,
-                   outValue ) );
-
-        /* Convert the code to an unsigned integer value. */
-        receivedToken = ( uint32_t ) strtoul( outValue, NULL, 10 );
-
-        LogInfo( ( "receivedToken:%d, clientToken:%u \r\n", receivedToken, clientToken ) );
-
-        /* If the clientToken in this update/accepted message matches the one we
-         * published before, it means the device shadow has accepted our latest
-         * reported state. We are done. */
-        if( receivedToken == clientToken )
-        {
-            LogInfo( ( "Received response from the device shadow. Previously published "
-                       "update with clientToken=%u has been accepted. ", clientToken ) );
-        }
-        else
-        {
-            LogWarn( ( "The received clientToken=%u is not identical with the one=%u we sent "
-                       , receivedToken, clientToken ) );
-        }
-    }
-    else
-    {
-        LogError( ( "No clientToken in json document!!" ) );
-        eventCallbackError = true;
-    }
-}
-
-/*-----------------------------------------------------------*/
-
-/* This is the callback function invoked by the MQTT stack when it receives
- * incoming messages. This function demonstrates how to use the Shadow_MatchTopicString
- * function to determine whether the incoming message is a device shadow message
- * or not. If it is, it handles the message depending on the message type.
- */
-static void eventCallback( MQTTContext_t * pMqttContext,
-                           MQTTPacketInfo_t * pPacketInfo,
-                           MQTTDeserializedInfo_t * pDeserializedInfo )
-{
-    ShadowMessageType_t messageType = ShadowMessageTypeMaxNum;
-    const char * pThingName = NULL;
-    uint8_t thingNameLength = 0U;
-    const char * pShadowName = NULL;
-    uint8_t shadowNameLength = 0U;
-    uint16_t packetIdentifier;
-
-    ( void ) pMqttContext;
-
-    assert( pDeserializedInfo != NULL );
-    assert( pMqttContext != NULL );
-    assert( pPacketInfo != NULL );
-
-    packetIdentifier = pDeserializedInfo->packetIdentifier;
-
-    /* Handle incoming publish. The lower 4 bits of the publish packet
-     * type is used for the dup, QoS, and retain flags. Hence masking
-     * out the lower bits to check if the packet is publish. */
-    if( ( pPacketInfo->type & 0xF0U ) == MQTT_PACKET_TYPE_PUBLISH )
-    {
-        assert( pDeserializedInfo->pPublishInfo != NULL );
-        LogInfo( ( "pPublishInfo->pTopicName:%s.", pDeserializedInfo->pPublishInfo->pTopicName ) );
-        LogInfo( ( "/update/rejected json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
-        
-        /* Let the Device Shadow library tell us whether this is a device shadow message. */
-        if( SHADOW_SUCCESS == Shadow_MatchTopicString( pDeserializedInfo->pPublishInfo->pTopicName,
-                                                       pDeserializedInfo->pPublishInfo->topicNameLength,
-                                                       &messageType,
-                                                       &pThingName,
-                                                       &thingNameLength,
-                                                       &pShadowName,
-                                                       &shadowNameLength ) )
-        {
-            /* Upon successful return, the messageType has been filled in. */
-            if( messageType == ShadowMessageTypeUpdateDelta )
-            {
-                /* Handler function to process payload. */
-                updateDeltaHandler( pDeserializedInfo->pPublishInfo );
-            }
-            else if( messageType == ShadowMessageTypeUpdateAccepted )
-            {
-                /* Handler function to process payload. */
-                updateAcceptedHandler( pDeserializedInfo->pPublishInfo );
-            }
-            else if( messageType == ShadowMessageTypeUpdateDocuments )
-            {
-                LogInfo( ( "/update/documents json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
-            }
-            else if( messageType == ShadowMessageTypeUpdateRejected )
-            {
-                LogInfo( ( "/update/rejected json payload:%s.", ( const char * ) pDeserializedInfo->pPublishInfo->pPayload ) );
-            }
-            else if( messageType == ShadowMessageTypeDeleteAccepted )
-            {
-                LogInfo( ( "Received an MQTT incoming publish on /delete/accepted topic." ) );
-                shadowDeleted = true;
-                deleteResponseReceived = true;
-            }
-            else if( messageType == ShadowMessageTypeDeleteRejected )
-            {
-                /* Handler function to process payload. */
-                deleteRejectedHandler( pDeserializedInfo->pPublishInfo );
-                deleteResponseReceived = true;
-            }
-            else
-            {
-                LogInfo( ( "Other message type:%d !!", messageType ) );
-            }
-        }
-        else
-        {
-            LogError( ( "Shadow_MatchTopicString parse failed:%s !!", ( const char * ) pDeserializedInfo->pPublishInfo->pTopicName ) );
-            eventCallbackError = true;
-        }
-    }
-    else
-    {
-        HandleOtherIncomingPacket( pPacketInfo, packetIdentifier );
-    }
-}
 
 /**
  * @brief Subscribe to the CreateKeysAndCertificate accepted and rejected topics.
@@ -780,11 +356,6 @@ static int32_t subscribeToKeyCertificateResponseTopics( void );
  * @brief Unsubscribe from the CreateKeysAndCertificate accepted and rejected topics.
  */
 static int32_t unsubscribeFromKeyCertificateResponseTopics( void );
-
-/**
- * @brief Subscribe to the RegisterThing accepted and rejected topics.
- */
-static int32_t subscribeToRegisterThingResponseTopics( void );
 
 /**
  * @brief Unsubscribe from the RegisterThing accepted and rejected topics.
@@ -1173,11 +744,22 @@ int aws_iot_demo_main( int argc,
                 LogInfo( ( "Received certificate with Id: %.*s", ( int ) certificateIdLength, certificateId ) );
                 LogInfo( ( "Received ownershipToken: %.*s", ( int ) ownershipTokenLength, ownershipToken ) );
                 LogInfo( ( "Received privateKey: %.*s", ( int ) privateKeyLength, privateKey ) );
+                provisioned_cert = certificate;
+                provisioned_privatekey = privateKey;
                 returnStatus = EXIT_SUCCESS;
             }
         }
 
         // Note: Skipped saving certificate into PKCS #11
+        // if ( returnStatus == EXIT_SUCCESS )
+        // {
+        //     /* Save the certificate into PKCS #11. */
+        //     status = loadCertificate( p11Session,
+        //                               certificate,
+        //                               pkcs11configLABEL_DEVICE_CERTIFICATE_FOR_TLS,
+        //                               certificateLength );
+        // }
+        
 
         if ( returnStatus == EXIT_SUCCESS )
         {
@@ -1276,29 +858,37 @@ int aws_iot_demo_main( int argc,
 
         /**** Connect to AWS IoT Core with provisioned certificate ************/
 
-        // if( returnStatus == EXIT_FAILURE )
-        // {
-        //     /* Log error to indicate connection failure. */
-        //     LogError( ( "Failed to connect to MQTT broker." ) );
-        // }
-        // else
-        // {
-            
+        if ( returnStatus == EXIT_SUCCESS )
+        {
+            LogInfo( ( "Establishing MQTT session with provisioned certificate..." ) );
+            returnStatus = EstablishProvisionedMqttSession( provisioningPublishCallback );
 
-        //     /* The MQTT session is always disconnected, even there were prior failures. */
-        //     returnStatus = DisconnectMqttSession();
-        // }
+            if( returnStatus != EXIT_SUCCESS )
+            {
+                LogError( ( "Failed to establish MQTT session with provisioned "
+                            "credentials. Verify on your AWS account that the "
+                            "new certificate is active and has an attached IoT "
+                            "Policy that allows the \"iot:Connect\" action." ) );
+            }
+            else
+            {
+                LogInfo( ( "Sucessfully established connection with provisioned credentials." ) );
+                connectionEstablished = true;
+            }
+        }
+        
+        /**** Finish **********************************************************/
 
-        // /* This demo performs only Device Shadow operations. If matching the Shadow
-        //  * topic fails or there are failures in parsing the received CBOR document,
-        //  * then this demo was not successful. */
-        // if( eventCallbackError == true )
-        // {
-        //     returnStatus = EXIT_FAILURE;
-        // }
+        if( connectionEstablished == true )
+        {
+            /* Close the connection. */
+            DisconnectMqttSession();
+            connectionEstablished = false;
+        }
 
-    } while (0);
-    // } while( returnStatus != EXIT_SUCCESS );
+        // TODO: Close PKCS11 session
+
+    } while( returnStatus != EXIT_SUCCESS );
 
     if( returnStatus == EXIT_SUCCESS )
     {

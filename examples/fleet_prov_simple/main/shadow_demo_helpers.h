@@ -30,6 +30,12 @@
 #include "core_mqtt.h"
 
 /**
+ * @brief Provisioned certificate
+ */
+char* provisioned_cert;
+char* provisioned_privatekey;
+
+/**
  * @brief Establish a MQTT connection.
  *
  * @param[in] appCallback The callback function used to receive incoming
@@ -39,6 +45,17 @@
  * EXIT_FAILURE otherwise.
  */
 int32_t EstablishMqttSession( MQTTEventCallback_t eventCallback );
+
+/**
+ * @brief Establish a MQTT connection.
+ *
+ * @param[in] appCallback The callback function used to receive incoming
+ * publishes and incoming acks from MQTT library.
+ *
+ * @return EXIT_SUCCESS if an MQTT session is established;
+ * EXIT_FAILURE otherwise.
+ */
+int32_t EstablishProvisionedMqttSession( MQTTEventCallback_t eventCallback );
 
 /**
  * @brief Handle the incoming packet if it's not related to the device shadow.
