@@ -10,6 +10,7 @@ set(COMPONENT_ADD_INCLUDEDIRS
 	"."
 	"${PROJECT_DIR}/../../libraries/common/logging/"
 	"${PROJECT_DIR}/../../libraries/corePKCS11/corePKCS11/source/dependency/3rdparty/mbedtls_utils/"
+	"${PROJECT_DIR}/../../libraries/corePKCS11/corePKCS11/source/dependency/3rdparty/mbedtls/programs/util/"
 	)
 
 idf_component_register(SRCS "${COMPONENT_SRCS}"

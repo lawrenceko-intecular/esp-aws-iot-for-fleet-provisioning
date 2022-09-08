@@ -2,20 +2,18 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.5)
 
-set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common
+set(EXTRA_COMPONENT_DIRS "$ENV{IDF_PATH}/examples/common_components/protocol_examples_common"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/coreMQTT"
-						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/corePKCS11"
-						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/Fleet-Provisioning-for-AWS-IoT-embedded-sdk"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/backoffAlgorithm"
 						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/common/posix_compat"
-						 "${CMAKE_CURRENT_LIST_DIR}/../../platform/posix"
-#						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/corePKCS11/source/dependency/3rdparty/mbedtls"
+						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/Fleet-Provisioning-for-AWS-IoT-embedded-sdk"
+						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/Device-Shadow-for-AWS-IoT-embedded-sdk"
+						 "${CMAKE_CURRENT_LIST_DIR}/../../libraries/coreJSON"
    )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(ota_mqtt)
+project(fleet_prov_simple)
 
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/root_cert_auth.pem" TEXT)
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/client.crt" TEXT)
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/client.key" TEXT)
-target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/aws_codesign.crt" TEXT)

@@ -73,39 +73,6 @@
 #endif
 
 /**
- * @brief Path of the file containing the provisioning claim certificate. This
- * certificate is used to connect to AWS IoT Core and use Fleet Provisioning
- * APIs to provision the client device. This is used for the "Provisioning by
- * Claim" provisioning workflow.
- *
- * For information about provisioning by claim, see the following AWS documentation:
- * https://docs.aws.amazon.com/iot/latest/developerguide/provision-wo-cert.html#claim-based
- *
- * @note This certificate should be PEM-encoded. The certificate should be
- * registered on AWS IoT Core beforehand. It should have an AWS IoT policy to
- * allow it to access only the Fleet Provisioning APIs. An example policy for
- * the claim certificates for this demo is available in the
- * example_claim_policy.json file in the demo directory. In the example,
- * replace <aws-region> with your AWS region, <aws-account-id> with your
- * account ID, and <template-name> with the name of your provisioning template.
- *
- */
-#define CLAIM_CERT_PATH    "client.crt"
-
-/**
- * @brief Path of the file containing the provisioning claim private key. This
- * key corresponds to the provisioning claim certificate and is used to
- * authenticate with AWS IoT for provisioning by claim.
- *
- * For information about provisioning by claim, see the following AWS documentation:
- * https://docs.aws.amazon.com/iot/latest/developerguide/provision-wo-cert.html#claim-based
- *
- * @note This private key should be PEM-encoded.
- *
- */
-#define CLAIM_PRIVATE_KEY_PATH    "client.key"
-
-/**
  * @brief Name of the provisioning template to use for the RegisterThing
  * portion of the Fleet Provisioning workflow.
  *
@@ -132,7 +99,7 @@
  * generate a unique Thing name. This should be unique per device.
  *
  */
-#define DEVICE_SERIAL_NUMBER    "29B4"
+#define DEVICE_SERIAL_NUMBER    "29B5"
 
 /**
  * @brief Subject name to use when creating the certificate signing request (CSR)
@@ -192,7 +159,7 @@
  *
  * This is the example predefine thing name and could be compiled in ROM code.
  */
-#define THING_NAME           CONFIG_MQTT_CLIENT_IDENTIFIER
+#define THING_NAME           "IVO1_29B5"
 
 /**
  * @brief The length of #THING_NAME.

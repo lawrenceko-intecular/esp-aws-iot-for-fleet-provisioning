@@ -53,6 +53,8 @@
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/x509_csr.h"
 
+#include "pem2der.h"
+
 /**
  * @brief Size of buffer in which to hold the certificate signing request (CSR).
  */
@@ -541,7 +543,7 @@ static CK_RV provisionPrivateRSAKey( CK_SESSION_HANDLE session,
 
     if( result != CKR_OK )
     {
-        LogError( ( "Could not get a PKCS #11 function pointer." ) );
+        printf( "Could not get a PKCS #11 function pointer.\n" );
     }
     else
     {
@@ -566,7 +568,7 @@ static CK_RV provisionPrivateRSAKey( CK_SESSION_HANDLE session,
 
         if( mbedResult != 0 )
         {
-            LogError( ( "Failed to parse RSA private key components." ) );
+            printf( "Failed to parse RSA private key components.\n" );
             result = CKR_ATTRIBUTE_VALUE_INVALID;
         }
 
@@ -643,7 +645,7 @@ static CK_RV provisionPrivateKey( CK_SESSION_HANDLE session,
 
     if( mbedResult != 0 )
     {
-        LogError( ( "Unable to parse private key." ) );
+        printf( "Unable to parse private key.\n" );
         result = CKR_ARGUMENTS_BAD;
     }
 
@@ -664,8 +666,8 @@ static CK_RV provisionPrivateKey( CK_SESSION_HANDLE session,
         }
         else
         {
-            LogError( ( "Invalid private key type provided. Only RSA-2048 and "
-                        "EC P-256 keys are supported." ) );
+            printf( "Invalid private key type provided. Only RSA-2048 and "
+                        "EC P-256 keys are supported.\n" );
             result = CKR_ARGUMENTS_BAD;
         }
     }
@@ -786,46 +788,55 @@ static CK_RV provisionCertificate( CK_SESSION_HANDLE session,
 /*-----------------------------------------------------------*/
 
 bool loadClaimCredentials( CK_SESSION_HANDLE p11Session,
-                           const char * pClaimCertPath,
+                           const char * pClaimCert,
                            const char * pClaimCertLabel,
-                           const char * pClaimPrivKeyPath,
+                           const char * pClaimPrivKey,
                            const char * pClaimPrivKeyLabel )
 {
+    printf( "Entered loadClaimCredentials" );
     bool status;
-    char claimCert[ CLAIM_CERT_BUFFER_LENGTH ] = { 0 };
-    size_t claimCertLength = 0;
-    char claimPrivateKey[ CLAIM_PRIVATE_KEY_BUFFER_LENGTH ] = { 0 };
-    size_t claimPrivateKeyLength = 0;
+    // char claimCert[ CLAIM_CERT_BUFFER_LENGTH ] = { 0 };
+    // size_t claimCertLength = 0;
+    // char claimPrivateKey[ CLAIM_PRIVATE_KEY_BUFFER_LENGTH ] = { 0 };
+    // size_t claimPrivateKeyLength = 0;
+    size_t pClaimCertLength = strlen(pClaimCert);
+    size_t pClaimPrivKeyLength = strlen(pClaimPrivKey);
     CK_RV ret;
 
-    assert( pClaimCertPath != NULL );
+    assert( pClaimCert != NULL );
     assert( pClaimCertLabel != NULL );
-    assert( pClaimPrivKeyPath != NULL );
+    assert( pClaimPrivKey != NULL );
     assert( pClaimPrivKeyLabel != NULL );
 
-    status = readFile( pClaimCertPath, claimCert, CLAIM_CERT_BUFFER_LENGTH,
-                       &claimCertLength );
+    // status = readFile( pClaimCertPath, claimCert, CLAIM_CERT_BUFFER_LENGTH,
+    //                    &claimCertLength );
+
+    // if( status == true )
+    // {
+    //     status = readFile( pClaimPrivKeyPath, claimPrivateKey,
+    //                        CLAIM_PRIVATE_KEY_BUFFER_LENGTH, &claimPrivateKeyLength );
+    // }
+    // else
+    // {
+    //     printf( "Failed to readFile pClaimCert" );
+    // }
+
+    ret = provisionPrivateKey( p11Session, pClaimPrivKey,
+                                    pClaimPrivKeyLength + 1, /* MbedTLS includes null character in length for PEM objects. */
+                                    pClaimPrivKeyLabel );
+    status = ( ret == CKR_OK );
+    
 
     if( status == true )
     {
-        status = readFile( pClaimPrivKeyPath, claimPrivateKey,
-                           CLAIM_PRIVATE_KEY_BUFFER_LENGTH, &claimPrivateKeyLength );
-    }
-
-    if( status == true )
-    {
-        ret = provisionPrivateKey( p11Session, claimPrivateKey,
-                                   claimPrivateKeyLength + 1, /* MbedTLS includes null character in length for PEM objects. */
-                                   pClaimPrivKeyLabel );
-        status = ( ret == CKR_OK );
-    }
-
-    if( status == true )
-    {
-        ret = provisionCertificate( p11Session, claimCert,
-                                    claimCertLength + 1, /* MbedTLS includes null character in length for PEM objects. */
+        ret = provisionCertificate( p11Session, pClaimCert,
+                                    pClaimCertLength + 1, /* MbedTLS includes null character in length for PEM objects. */
                                     pClaimCertLabel );
         status = ( ret == CKR_OK );
+    }
+    else
+    {
+        printf( "Failed to provisionPrivateKey" );
     }
 
     return status;

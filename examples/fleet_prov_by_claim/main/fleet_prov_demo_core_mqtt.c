@@ -172,33 +172,64 @@ int aws_iot_demo_main( int argc,
 
     do
     {
-        /* Initialize the buffer lengths to their max lengths. */
-        certificateLength = CERT_BUFFER_LENGTH;
-        certificateIdLength = CERT_ID_BUFFER_LENGTH;
-        ownershipTokenLength = OWNERSHIP_TOKEN_BUFFER_LENGTH;
+        // /* Initialize the buffer lengths to their max lengths. */
+        // certificateLength = CERT_BUFFER_LENGTH;
+        // certificateIdLength = CERT_ID_BUFFER_LENGTH;
+        // ownershipTokenLength = OWNERSHIP_TOKEN_BUFFER_LENGTH;
 
-        /* Initialize the PKCS #11 module */
-        pkcs11ret = xInitializePkcs11Session( &p11Session );
+        // /* Initialize the PKCS #11 module */
+        // pkcs11ret = xInitializePkcs11Session( &p11Session );
         
-        if( pkcs11ret != CKR_OK )
-        {
-            LogError( ( "Failed to initialize PKCS #11." ) );
-            status = false;
-        }
-        else
-        {
+        // if( pkcs11ret != CKR_OK )
+        // {
+        //     LogError( ( "Failed to initialize PKCS #11." ) );
+        //     status = false;
+        // }
+        // else
+        // {
             /* Insert the claim credentials into the PKCS #11 module */
-            status = loadClaimCredentials( p11Session,
-                                           CLAIM_CERT_PATH,
-                                           "Claim Cert",
-                                           CLAIM_PRIVATE_KEY_PATH,
-                                           "Claim Key" );
+        //     status = loadClaimCredentials( p11Session,
+        //                                    CLAIM_CERT_PATH,
+        //                                    "Claim Cert",
+        //                                    CLAIM_PRIVATE_KEY_PATH,
+        //                                    "Claim Key" );
 
-            if( status == false )
-            {
-                LogError( ( "Failed to provision PKCS #11 with claim credentials." ) );
-            }
-        }
+        //     if( status == false )
+        //     {
+        //         LogError( ( "Failed to provision PKCS #11 with claim credentials." ) );
+        //     }
+        // }
+
+        /**** Connect to AWS IoT Core with provisioning claim credentials *****/
+
+        /* We first use the claim credentials to connect to the broker. These
+         * credentials should allow use of the RegisterThing API and one of the
+         * CreateCertificatefromCsr or CreateKeysAndCertificate.
+         * In this demo we use CreateCertificatefromCsr. */
+
+        // if( status == true )
+        // {
+        //     /* Attempts to connect to the AWS IoT MQTT broker. If the
+        //      * connection fails, retries after a timeout. Timeout value will
+        //      * exponentially increase until maximum attempts are reached. */
+        //     LogInfo( ( "Establishing MQTT session with claim certificate..." ) );
+        //     status = EstablishMqttSession( provisioningPublishCallback,
+        //                                    p11Session,
+        //                                    "Claim Cert",
+        //                                    "Claim Key" );
+
+        //     if( status == false )
+        //     {
+        //         LogError( ( "Failed to establish MQTT session." ) );
+        //     }
+        //     else
+        //     {
+        //         LogInfo( ( "Established connection with claim credentials." ) );
+        //         connectionEstablished = true;
+        //     }
+        // }
+
+
 
     } while ( status != true );
     

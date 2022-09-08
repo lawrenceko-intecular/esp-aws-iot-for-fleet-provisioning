@@ -50,9 +50,9 @@
  * @return True on success.
  */
 bool loadClaimCredentials( CK_SESSION_HANDLE p11Session,
-                           const char * pClaimCertPath,
+                           const char * pClaimCert,
                            const char * pClaimCertLabel,
-                           const char * pClaimPrivKeyPath,
+                           const char * pClaimPrivKey,
                            const char * pClaimPrivKeyLabel );
 
 /**
